@@ -1,0 +1,113 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using SeguimientoCursada.Models;
+using SeguimientoCursada.Services;
+
+namespace SeguimientoCursada.ViewModels;
+
+public class PanelRiesgoViewModel : INotifyPropertyChanged
+{
+    private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
+    private string _comisionSeleccionada = "1° A";
+
+    public PanelRiesgoViewModel()
+    {
+        EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += FuenteCambiada;
+        AsistenciaViewModel.TodasLasAsistencias.CollectionChanged += FuenteCambiada;
+        ActualizarPanel();
+    }
+
+    public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
+
+    public string ComisionSeleccionada
+    {
+        get => _comisionSeleccionada;
+        set
+        {
+            if (SetProperty(ref _comisionSeleccionada, value))
+            {
+                ActualizarPanel();
+            }
+        }
+    }
+
+    public ObservableCollection<EstudianteRiesgoViewModel> Estudiantes { get; } = new();
+
+    public string MensajeNominaVacia =>
+        $"Todavía no hay estudiantes en la comisión {ComisionSeleccionada}.";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void FuenteCambiada(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        ActualizarPanel();
+    }
+
+    private void ActualizarPanel()
+    {
+        Estudiantes.Clear();
+
+        foreach (var estudiante in EstudiantesViewModel.TodosLosEstudiantes
+                     .Where(estudiante => estudiante.Comision == ComisionSeleccionada)
+                     .Select(estudiante => new EstudianteRiesgoViewModel(estudiante))
+                     .OrderByDescending(estudiante => estudiante.PrioridadRiesgo)
+                     .ThenByDescending(estudiante => estudiante.Inasistencias)
+                     .ThenBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
+                     .ThenBy(estudiante => estudiante.Nombre, StringComparer.CurrentCultureIgnoreCase))
+        {
+            Estudiantes.Add(estudiante);
+        }
+
+        OnPropertyChanged(nameof(MensajeNominaVacia));
+    }
+
+    private bool SetProperty<T>(ref T backingField, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(backingField, value))
+        {
+            return false;
+        }
+
+        backingField = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class EstudianteRiesgoViewModel
+{
+    public EstudianteRiesgoViewModel(Estudiante estudiante)
+    {
+        var resultado = RiesgoEstudianteService.Calcular(
+            estudiante,
+            AsistenciaViewModel.TodasLasAsistencias);
+
+        Legajo = estudiante.Legajo;
+        Apellido = estudiante.Apellido;
+        Nombre = estudiante.Nombre;
+        Inasistencias = resultado.Inasistencias;
+        NivelRiesgo = resultado.Nivel.ToString();
+        MotivoRiesgo = resultado.Motivo;
+        PrioridadRiesgo = resultado.Nivel switch
+        {
+            SeguimientoCursada.Services.NivelRiesgo.Alto => 3,
+            SeguimientoCursada.Services.NivelRiesgo.Medio => 2,
+            _ => 1
+        };
+    }
+
+    public int Legajo { get; }
+    public string Apellido { get; }
+    public string Nombre { get; }
+    public int Inasistencias { get; }
+    public string NivelRiesgo { get; }
+    public string MotivoRiesgo { get; }
+    public int PrioridadRiesgo { get; }
+}

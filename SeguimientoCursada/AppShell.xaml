@@ -16,4 +16,9 @@
         ContentTemplate="{DataTemplate pages:AsistenciaPage}"
         Route="AsistenciaPage" />
 
+    <ShellContent
+        Title="Panel de riesgo"
+        ContentTemplate="{DataTemplate pages:PanelRiesgoPage}"
+        Route="PanelRiesgoPage" />
+
 </Shell>

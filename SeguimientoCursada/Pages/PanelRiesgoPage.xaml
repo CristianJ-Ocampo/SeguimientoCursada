@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.PanelRiesgoPage"
+             x:DataType="viewModels:PanelRiesgoViewModel"
+             Title="Panel de riesgo">
+    <Grid Padding="24"
+          RowDefinitions="Auto,Auto,*"
+          RowSpacing="16">
+        <Label Grid.Row="0"
+               Text="Panel de riesgo de la comisión"
+               Style="{StaticResource Headline}"
+               SemanticProperties.HeadingLevel="Level1" />
+
+        <VerticalStackLayout Grid.Row="1" Spacing="4">
+            <Label Text="Comisión" />
+            <Picker Title="Seleccioná una comisión"
+                    ItemsSource="{Binding Comisiones}"
+                    SelectedItem="{Binding ComisionSeleccionada}" />
+        </VerticalStackLayout>
+
+        <CollectionView Grid.Row="2"
+                        ItemsSource="{Binding Estudiantes}"
+                        EmptyView="No hay estudiantes registrados en esta comisión.">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:EstudianteRiesgoViewModel">
+                    <Border Stroke="LightGray"
+                            StrokeThickness="1"
+                            Padding="12"
+                            Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="12">
+                            <Label Grid.Column="0"
+                                   Text="{Binding Legajo}"
+                                   VerticalOptions="Center"
+                                   FontAttributes="Bold" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Apellido}"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding Nombre}" />
+                                <Label Text="{Binding MotivoRiesgo}"
+                                       FontSize="12"
+                                       TextColor="Gray" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="2"
+                                                 VerticalOptions="Center"
+                                                 HorizontalOptions="End">
+                                <Label Text="{Binding NivelRiesgo}"
+                                       FontAttributes="Bold"
+                                       HorizontalTextAlignment="End" />
+                                <Label Text="{Binding Inasistencias, StringFormat='Faltas: {0}'}"
+                                       FontSize="12"
+                                       HorizontalTextAlignment="End" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

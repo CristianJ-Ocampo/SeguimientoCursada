@@ -8,6 +8,7 @@ namespace SeguimientoCursada.ViewModels;
 public class AsistenciaViewModel : INotifyPropertyChanged
 {
     private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
+    public static ObservableCollection<Asistencia> TodasLasAsistencias { get; } = new();
     private string _comisionSeleccionada = "1° A";
     private DateTime _fechaSeleccionada = DateTime.Today;
     private string _mensajeValidacion = string.Empty;
@@ -41,7 +42,7 @@ public class AsistenciaViewModel : INotifyPropertyChanged
 
     public ObservableCollection<EstudianteAsistenciaViewModel> Estudiantes { get; } = new();
 
-    public ObservableCollection<Asistencia> Asistencias { get; } = new();
+    public ObservableCollection<Asistencia> Asistencias => TodasLasAsistencias;
 
     public string MensajeValidacion
     {
