@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using SeguimientoCursada.Services;
 
 namespace SeguimientoCursada
 {
@@ -13,7 +14,8 @@ namespace SeguimientoCursada
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
-                });
+                })
+                .Services.AddSingleton<DatabaseService>();
 
 #if DEBUG
     		builder.Logging.AddDebug();

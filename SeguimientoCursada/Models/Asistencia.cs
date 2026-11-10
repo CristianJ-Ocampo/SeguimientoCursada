@@ -1,7 +1,10 @@
+using SQLite;
+
 namespace SeguimientoCursada.Models;
 
 public class Asistencia
 {
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
     public int LegajoEstudiante { get; set; }
     public DateTime Fecha { get; set; }
