@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.AsistenciaPage"
+             x:DataType="viewModels:AsistenciaViewModel"
+             Title="Asistencia">
+    <Grid Padding="24"
+          RowDefinitions="Auto,Auto,Auto,Auto,*"
+          RowSpacing="16">
+        <Label Grid.Row="0"
+               Text="Registrar asistencia"
+               Style="{StaticResource Headline}"
+               SemanticProperties.HeadingLevel="Level1" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Comisión" />
+                <Picker Title="Seleccioná una comisión"
+                        ItemsSource="{Binding Comisiones}"
+                        SelectedItem="{Binding ComisionSeleccionada}" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                <Label Text="Fecha de la clase" />
+                <DatePicker Date="{Binding FechaSeleccionada}"
+                            Format="dd/MM/yyyy" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <Button Grid.Row="2"
+                Text="Guardar Asistencia"
+                Command="{Binding GuardarAsistenciaCommand}"
+                HorizontalOptions="Fill" />
+
+        <Label Grid.Row="3"
+               Text="{Binding MensajeValidacion}"
+               TextColor="Green" />
+
+        <CollectionView Grid.Row="4"
+                        ItemsSource="{Binding Estudiantes}"
+                        EmptyView="No hay estudiantes registrados en esta comisión.">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:EstudianteAsistenciaViewModel">
+                    <Border Stroke="LightGray"
+                            StrokeThickness="1"
+                            Padding="12"
+                            Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="12">
+                            <Label Grid.Column="0"
+                                   Text="{Binding Legajo}"
+                                   VerticalOptions="Center"
+                                   FontAttributes="Bold" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Apellido}"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding Nombre}" />
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="2"
+                                                   Spacing="8"
+                                                   VerticalOptions="Center">
+                                <Label Text="Presente"
+                                       VerticalOptions="Center" />
+                                <CheckBox IsChecked="{Binding Presente}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

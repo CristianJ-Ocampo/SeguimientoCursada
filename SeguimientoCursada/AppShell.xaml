@@ -11,4 +11,9 @@
         ContentTemplate="{DataTemplate pages:EstudiantesPage}"
         Route="EstudiantesPage" />
 
+    <ShellContent
+        Title="Asistencia"
+        ContentTemplate="{DataTemplate pages:AsistenciaPage}"
+        Route="AsistenciaPage" />
+
 </Shell>

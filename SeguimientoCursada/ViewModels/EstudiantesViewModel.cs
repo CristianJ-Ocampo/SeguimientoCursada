@@ -19,7 +19,9 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         ActualizarNominaFiltrada();
     }
 
-    public ObservableCollection<Estudiante> Estudiantes { get; } = new();
+    public static ObservableCollection<Estudiante> TodosLosEstudiantes { get; } = new();
+
+    public ObservableCollection<Estudiante> Estudiantes => TodosLosEstudiantes;
 
     public ObservableCollection<Estudiante> EstudiantesFiltrados { get; } = new();
 
@@ -72,15 +74,15 @@ public class EstudiantesViewModel : INotifyPropertyChanged
 
     private async Task AgregarEstudianteAsync()
     {
-        var legajo = InputLegajo;
+        var inputLegajo = InputLegajo;
 
-        if (string.IsNullOrWhiteSpace(InputLegajo))
+        if (string.IsNullOrWhiteSpace(inputLegajo))
         {
             await MostrarAlertaAsync("El legajo es un campo obligatorio.");
             return;
         }
 
-        if (!InputLegajo.All(char.IsDigit))
+        if (!inputLegajo.All(char.IsDigit) || !int.TryParse(inputLegajo, out var legajo))
         {
             await MostrarAlertaAsync("El legajo solo debe contener números.");
             return;
@@ -104,8 +106,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (Estudiantes.Any(estudiante =>
-                string.Equals(estudiante.Legajo, legajo, StringComparison.OrdinalIgnoreCase)))
+        if (Estudiantes.Any(estudiante => estudiante.Legajo == legajo))
         {
             await MostrarAlertaAsync($"El legajo {legajo} ya está registrado.");
             return;
