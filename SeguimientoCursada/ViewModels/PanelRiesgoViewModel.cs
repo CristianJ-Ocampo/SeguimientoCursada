@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using SeguimientoCursada.Models;
+using SeguimientoCursada.Pages;
 using SeguimientoCursada.Services;
 
 namespace SeguimientoCursada.ViewModels;
@@ -14,6 +16,17 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 
     public PanelRiesgoViewModel()
     {
+        AbrirDetalleCommand = new Command(async parameter =>
+        {
+            if (int.TryParse(
+                    Convert.ToString(parameter, CultureInfo.InvariantCulture),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var legajo) && legajo > 0)
+            {
+                await AbrirDetalleAsync(legajo);
+            }
+        });
         EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += FuenteCambiada;
         AsistenciaViewModel.TodasLasAsistencias.CollectionChanged += FuenteCambiada;
         ActualizarPanel();
@@ -35,6 +48,8 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 
     public ObservableCollection<EstudianteRiesgoViewModel> Estudiantes { get; } = new();
 
+    public Command AbrirDetalleCommand { get; }
+
     public string MensajeNominaVacia =>
         $"Todavía no hay estudiantes en la comisión {ComisionSeleccionada}.";
 
@@ -43,6 +58,12 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
     private void FuenteCambiada(object? sender, NotifyCollectionChangedEventArgs e)
     {
         ActualizarPanel();
+    }
+
+    private static Task AbrirDetalleAsync(int legajo)
+    {
+        return Shell.Current.GoToAsync(
+            $"{nameof(EstudianteDetallePage)}?Legajo={legajo.ToString(CultureInfo.InvariantCulture)}");
     }
 
     private void ActualizarPanel()

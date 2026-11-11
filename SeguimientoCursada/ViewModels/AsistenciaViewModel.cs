@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using SeguimientoCursada.Models;
+using SeguimientoCursada.Services;
 
 namespace SeguimientoCursada.ViewModels;
 
 public class AsistenciaViewModel : INotifyPropertyChanged
 {
+    private readonly DatabaseService _databaseService;
     private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
     public static ObservableCollection<Asistencia> TodasLasAsistencias { get; } = new();
     private string _comisionSeleccionada = "1° A";
@@ -14,10 +17,17 @@ public class AsistenciaViewModel : INotifyPropertyChanged
     private string _mensajeValidacion = string.Empty;
 
     public AsistenciaViewModel()
+        : this(ObtenerDatabaseService())
     {
+    }
+
+    public AsistenciaViewModel(DatabaseService databaseService)
+    {
+        _databaseService = databaseService;
         GuardarAsistenciaCommand = new Command(async () => await GuardarAsistenciaAsync());
         EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += (_, _) => ActualizarEstudiantes();
         ActualizarEstudiantes();
+        _ = CargarAsistenciasAsync();
     }
 
     public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
@@ -79,16 +89,12 @@ public class AsistenciaViewModel : INotifyPropertyChanged
             .Where(asistencia => asistencia.Comision == ComisionSeleccionada && asistencia.Fecha.Date == fecha)
             .ToList();
 
-        foreach (var registro in registrosAnteriores)
-        {
-            Asistencias.Remove(registro);
-        }
-
+        var nuevosRegistros = new List<Asistencia>();
         var siguienteId = Asistencias.Count == 0 ? 1 : Asistencias.Max(asistencia => asistencia.Id) + 1;
 
         foreach (var estudiante in Estudiantes)
         {
-            Asistencias.Add(new Asistencia
+            nuevosRegistros.Add(new Asistencia
             {
                 Id = siguienteId++,
                 LegajoEstudiante = estudiante.Legajo,
@@ -98,8 +104,53 @@ public class AsistenciaViewModel : INotifyPropertyChanged
             });
         }
 
+        try
+        {
+            foreach (var registro in registrosAnteriores)
+            {
+                await _databaseService.DeleteAsistenciaAsync(registro);
+            }
+
+            foreach (var registro in nuevosRegistros)
+            {
+                await _databaseService.SaveAsistenciaAsync(registro);
+            }
+
+            await CargarAsistenciasAsync();
+        }
+        catch (Exception ex)
+        {
+            await CargarAsistenciasAsync();
+            MensajeValidacion = $"No se pudo guardar la asistencia: {ex.Message}";
+            return;
+        }
+
         MensajeValidacion = "Asistencia guardada correctamente.";
         await MostrarAlertaAsync(MensajeValidacion);
+    }
+
+    private async Task CargarAsistenciasAsync()
+    {
+        try
+        {
+            var asistencias = await _databaseService.GetAsistenciasAsync();
+
+            Asistencias.Clear();
+            foreach (var asistencia in asistencias)
+            {
+                Asistencias.Add(asistencia);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensajeValidacion = $"No se pudieron cargar las asistencias: {ex.Message}";
+        }
+    }
+
+    private static DatabaseService ObtenerDatabaseService()
+    {
+        return Application.Current?.Handler?.MauiContext?.Services.GetRequiredService<DatabaseService>()
+            ?? throw new InvalidOperationException("DatabaseService no está disponible.");
     }
 
     private void ActualizarEstudiantes()

@@ -4,6 +4,7 @@
              xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
              xmlns:models="clr-namespace:SeguimientoCursada.Models"
              x:Class="SeguimientoCursada.Pages.EstudiantesPage"
+             x:Name="EstudiantesPageRoot"
              x:DataType="viewModels:EstudiantesViewModel"
              Title="Estudiantes">
     <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12">
@@ -56,7 +57,7 @@
                                     StrokeThickness="1"
                                     Padding="12"
                                     Margin="0,0,0,8">
-                                <Grid ColumnDefinitions="Auto,*,Auto,*"
+                                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto"
                                       RowDefinitions="Auto,Auto">
                                     <Label Grid.Row="0" Grid.Column="0" Text="Legajo:" FontAttributes="Bold" />
                                     <Label Grid.Row="0" Grid.Column="1" Text="{Binding Legajo}" Margin="8,0,16,0" />
@@ -66,6 +67,12 @@
                                     <Label Grid.Row="1" Grid.Column="1" Text="{Binding Apellido}" Margin="8,0,16,0" />
                                     <Label Grid.Row="1" Grid.Column="2" Text="Nombre:" FontAttributes="Bold" />
                                     <Label Grid.Row="1" Grid.Column="3" Text="{Binding Nombre}" Margin="8,0,0,0" />
+                                    <Button Grid.RowSpan="2"
+                                            Grid.Column="4"
+                                            Text="Ver ficha"
+                                            Command="{Binding Source={x:Reference EstudiantesPageRoot}, Path=BindingContext.AbrirDetalleCommand}"
+                                            CommandParameter="{Binding Legajo}"
+                                            VerticalOptions="Center" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

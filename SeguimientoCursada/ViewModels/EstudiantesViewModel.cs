@@ -1,12 +1,17 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using SeguimientoCursada.Models;
+using SeguimientoCursada.Pages;
+using SeguimientoCursada.Services;
 
 namespace SeguimientoCursada.ViewModels;
 
 public class EstudiantesViewModel : INotifyPropertyChanged
 {
+    private readonly DatabaseService _databaseService;
     private string _inputLegajo = string.Empty;
     private string _apellido = string.Empty;
     private string _nombre = string.Empty;
@@ -14,9 +19,23 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     private string _mensajeValidacion = string.Empty;
 
     public EstudiantesViewModel()
+        : this(ObtenerDatabaseService())
     {
+    }
+
+    public EstudiantesViewModel(DatabaseService databaseService)
+    {
+        _databaseService = databaseService;
         AgregarEstudianteCommand = new Command(async () => await AgregarEstudianteAsync());
+        AbrirDetalleCommand = new Command(async parameter =>
+        {
+            if (TryObtenerLegajo(parameter, out var legajo))
+            {
+                await AbrirDetalleAsync(legajo);
+            }
+        });
         ActualizarNominaFiltrada();
+        _ = CargarEstudiantesAsync();
     }
 
     public static ObservableCollection<Estudiante> TodosLosEstudiantes { get; } = new();
@@ -70,6 +89,8 @@ public class EstudiantesViewModel : INotifyPropertyChanged
 
     public Command AgregarEstudianteCommand { get; }
 
+    public Command AbrirDetalleCommand { get; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private async Task AgregarEstudianteAsync()
@@ -112,13 +133,25 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             return;
         }
 
-        Estudiantes.Add(new Estudiante
+        var estudiante = new Estudiante
         {
             Legajo = legajo,
             Apellido = Apellido.Trim(),
             Nombre = Nombre.Trim(),
             Comision = ComisionSeleccionada
-        });
+        };
+
+        try
+        {
+            await _databaseService.SaveEstudianteAsync(estudiante);
+        }
+        catch (Exception ex)
+        {
+            MensajeValidacion = $"No se pudo guardar el estudiante: {ex.Message}";
+            return;
+        }
+
+        Estudiantes.Add(estudiante);
 
         InputLegajo = string.Empty;
         Apellido = string.Empty;
@@ -127,10 +160,51 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         ActualizarNominaFiltrada();
     }
 
+    private async Task CargarEstudiantesAsync()
+    {
+        try
+        {
+            var estudiantes = await _databaseService.GetEstudiantesAsync();
+
+            Estudiantes.Clear();
+            foreach (var estudiante in estudiantes)
+            {
+                Estudiantes.Add(estudiante);
+            }
+
+            ActualizarNominaFiltrada();
+        }
+        catch (Exception ex)
+        {
+            MensajeValidacion = $"No se pudieron cargar los estudiantes: {ex.Message}";
+        }
+    }
+
+    private static DatabaseService ObtenerDatabaseService()
+    {
+        return Application.Current?.Handler?.MauiContext?.Services.GetRequiredService<DatabaseService>()
+            ?? throw new InvalidOperationException("DatabaseService no está disponible.");
+    }
+
     private static Task MostrarAlertaAsync(string mensaje)
     {
         return Application.Current?.MainPage?.DisplayAlert("Atención", mensaje, "OK")
             ?? Task.CompletedTask;
+    }
+
+    private static async Task AbrirDetalleAsync(int legajo)
+    {
+        await Shell.Current.GoToAsync(
+            $"{nameof(EstudianteDetallePage)}?Legajo={legajo.ToString(CultureInfo.InvariantCulture)}");
+    }
+
+    private static bool TryObtenerLegajo(object? parameter, out int legajo)
+    {
+        return int.TryParse(
+            Convert.ToString(parameter, CultureInfo.InvariantCulture),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out legajo) && legajo > 0;
     }
 
     private void ActualizarNominaFiltrada()

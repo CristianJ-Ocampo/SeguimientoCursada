@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
              x:Class="SeguimientoCursada.Pages.PanelRiesgoPage"
+             x:Name="PanelRiesgoPageRoot"
              x:DataType="viewModels:PanelRiesgoViewModel"
              Title="Panel de riesgo">
     <Grid Padding="24"
@@ -29,7 +30,7 @@
                             StrokeThickness="1"
                             Padding="12"
                             Margin="0,0,0,8">
-                        <Grid ColumnDefinitions="Auto,*,Auto"
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                               ColumnSpacing="12">
                             <Label Grid.Column="0"
                                    Text="{Binding Legajo}"
@@ -54,6 +55,11 @@
                                        FontSize="12"
                                        HorizontalTextAlignment="End" />
                             </VerticalStackLayout>
+                            <Button Grid.Column="3"
+                                    Text="Ver ficha"
+                                    Command="{Binding Source={x:Reference PanelRiesgoPageRoot}, Path=BindingContext.AbrirDetalleCommand}"
+                                    CommandParameter="{Binding Legajo}"
+                                    VerticalOptions="Center" />
                         </Grid>
                     </Border>
                 </DataTemplate>

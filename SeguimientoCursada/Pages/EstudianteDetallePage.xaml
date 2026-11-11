@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.EstudianteDetallePage"
+             x:DataType="viewModels:EstudianteDetalleViewModel"
+             Title="Ficha del estudiante">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="16">
+            <Label Text="Ficha del estudiante"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+
+            <Border Stroke="LightGray"
+                    StrokeThickness="1"
+                    Padding="16">
+                <Grid ColumnDefinitions="Auto,*"
+                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                      ColumnSpacing="12"
+                      RowSpacing="8">
+                    <Label Grid.Row="0" Text="Apellido:" FontAttributes="Bold" />
+                    <Label Grid.Row="0" Grid.Column="1" Text="{Binding Apellido}" />
+                    <Label Grid.Row="1" Text="Nombre:" FontAttributes="Bold" />
+                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Nombre}" />
+                    <Label Grid.Row="2" Text="Legajo:" FontAttributes="Bold" />
+                    <Label Grid.Row="2" Grid.Column="1" Text="{Binding Legajo}" />
+                    <Label Grid.Row="3" Text="Comisión:" FontAttributes="Bold" />
+                    <Label Grid.Row="3" Grid.Column="1" Text="{Binding Comision}" />
+                    <Label Grid.Row="4" Text="Riesgo:" FontAttributes="Bold" />
+                    <Label Grid.Row="4" Grid.Column="1"
+                           Text="{Binding NivelRiesgo}"
+                           FontAttributes="Bold"
+                           TextColor="DarkRed" />
+                    <Label Grid.Row="5" Text="Detalle:" FontAttributes="Bold" />
+                    <Label Grid.Row="5" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
+                </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="12">
+                    <VerticalStackLayout>
+                        <Label Text="Clases registradas" FontAttributes="Bold" />
+                        <Label Text="{Binding TotalClases}" FontSize="24" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" Stroke="LightGray" StrokeThickness="1" Padding="12">
+                    <VerticalStackLayout>
+                        <Label Text="Inasistencias" FontAttributes="Bold" />
+                        <Label Text="{Binding TotalInasistencias}" FontSize="24" TextColor="DarkRed" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <Label Text="Historial de asistencia"
+                   Style="{StaticResource SubHeadline}"
+                   SemanticProperties.HeadingLevel="Level2" />
+
+            <CollectionView ItemsSource="{Binding Historial}"
+                            HeightRequest="300"
+                            EmptyView="No hay asistencias registradas para este estudiante.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:AsistenciaHistorialViewModel">
+                        <Grid Padding="12"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
+                                   VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding Estado}"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="{Binding Mensaje}"
+                   TextColor="Red" />
+            <Button Text="Volver"
+                    Command="{Binding VolverCommand}" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

@@ -1,4 +1,5 @@
 using SQLite;
+using System.Diagnostics;
 using SeguimientoCursada.Models;
 
 namespace SeguimientoCursada.Services;
@@ -49,6 +50,26 @@ public sealed class DatabaseService
         return await _database.Table<Estudiante>().ToListAsync();
     }
 
+    public async Task<Estudiante?> GetEstudianteAsync(int legajo)
+    {
+        return await GetEstudiantePorLegajoAsync(legajo);
+    }
+
+    public async Task<Estudiante?> GetEstudiantePorLegajoAsync(int legajo)
+    {
+        await InitializeAsync();
+        Debug.WriteLine($"[DatabaseService] Buscando estudiante por Legajo={legajo}");
+
+        var estudiante = await _database.Table<Estudiante>()
+            .FirstOrDefaultAsync(e => e.Legajo == legajo);
+
+        Debug.WriteLine(estudiante is null
+            ? $"[DatabaseService] Estudiante no encontrado para Legajo={legajo}"
+            : $"[DatabaseService] Estudiante encontrado para Legajo={legajo}: {estudiante.Apellido}, {estudiante.Nombre}");
+
+        return estudiante;
+    }
+
     public async Task<int> SaveEstudianteAsync(Estudiante estudiante)
     {
         ArgumentNullException.ThrowIfNull(estudiante);
@@ -67,6 +88,20 @@ public sealed class DatabaseService
     {
         await InitializeAsync();
         return await _database.Table<Asistencia>().ToListAsync();
+    }
+
+    public async Task<List<Asistencia>> GetAsistenciasPorLegajoAsync(int legajo)
+    {
+        await InitializeAsync();
+        Debug.WriteLine($"[DatabaseService] Buscando asistencias para Legajo={legajo}");
+
+        var asistencias = await _database.Table<Asistencia>()
+            .Where(a => a.LegajoEstudiante == legajo)
+            .ToListAsync();
+
+        Debug.WriteLine($"[DatabaseService] Asistencias encontradas para Legajo={legajo}: {asistencias.Count}");
+
+        return asistencias;
     }
 
     public async Task<int> SaveAsistenciaAsync(Asistencia asistencia)
