@@ -37,6 +37,8 @@ public sealed class DatabaseService
             await _database.CreateTableAsync<Estudiante>();
             await _database.CreateTableAsync<Asistencia>();
             await _database.CreateTableAsync<FechaClase>();
+            await _database.CreateTableAsync<TrabajoPractico>();
+            await _database.CreateTableAsync<EntregaTrabajo>();
             await MigrarEstadosAsistenciaAsync();
             _initialized = true;
         }
@@ -143,6 +145,12 @@ public sealed class DatabaseService
             .ToListAsync();
     }
 
+    public async Task<List<EntregaTrabajo>> GetEntregasAsync()
+    {
+        await InitializeAsync();
+        return await _database.Table<EntregaTrabajo>().ToListAsync();
+    }
+
     public async Task<FechaClase?> GetFechaClaseAsync(DateTime fecha)
     {
         await InitializeAsync();
@@ -183,6 +191,109 @@ public sealed class DatabaseService
         return await _database.Table<FechaClase>()
             .Where(fechaClase => fechaClase.EsDiaClase)
             .CountAsync();
+    }
+
+    public async Task<List<TrabajoPractico>> GetTrabajosPracticosAsync(bool soloObligatorios = false)
+    {
+        await InitializeAsync();
+        var trabajos = await _database.Table<TrabajoPractico>()
+            .Where(trabajo => trabajo.Activo)
+            .ToListAsync();
+
+        return soloObligatorios
+            ? trabajos.Where(trabajo => trabajo.Obligatorio).ToList()
+            : trabajos;
+    }
+
+    public async Task<TrabajoPractico?> GetTrabajoPracticoAsync(int id)
+    {
+        await InitializeAsync();
+        return await _database.Table<TrabajoPractico>()
+            .FirstOrDefaultAsync(trabajo => trabajo.Id == id);
+    }
+
+    public async Task<int> SaveTrabajoPracticoAsync(TrabajoPractico trabajo)
+    {
+        ArgumentNullException.ThrowIfNull(trabajo);
+
+        if (string.IsNullOrWhiteSpace(trabajo.Titulo))
+        {
+            throw new ArgumentException("El título del trabajo práctico es obligatorio.", nameof(trabajo));
+        }
+
+        await InitializeAsync();
+        trabajo.Titulo = trabajo.Titulo.Trim();
+        trabajo.Descripcion = trabajo.Descripcion?.Trim() ?? string.Empty;
+
+        return trabajo.Id > 0
+            ? await _database.UpdateAsync(trabajo)
+            : await _database.InsertAsync(trabajo);
+    }
+
+    public async Task<int> DeleteTrabajoPracticoAsync(TrabajoPractico trabajo)
+    {
+        ArgumentNullException.ThrowIfNull(trabajo);
+        await InitializeAsync();
+
+        var entregas = await _database.Table<EntregaTrabajo>()
+            .Where(entrega => entrega.TrabajoPracticoId == trabajo.Id)
+            .ToListAsync();
+
+        foreach (var entrega in entregas)
+        {
+            await _database.DeleteAsync(entrega);
+        }
+
+        return await _database.DeleteAsync(trabajo);
+    }
+
+    public async Task<List<EntregaTrabajo>> GetEntregasPorLegajoAsync(int legajo)
+    {
+        await InitializeAsync();
+        return await _database.Table<EntregaTrabajo>()
+            .Where(entrega => entrega.LegajoEstudiante == legajo)
+            .ToListAsync();
+    }
+
+    public async Task<EntregaTrabajo?> GetEntregaTrabajoAsync(int legajo, int trabajoPracticoId)
+    {
+        await InitializeAsync();
+        return await _database.Table<EntregaTrabajo>()
+            .FirstOrDefaultAsync(entrega => entrega.LegajoEstudiante == legajo &&
+                                            entrega.TrabajoPracticoId == trabajoPracticoId);
+    }
+
+    public async Task<int> SaveEntregaTrabajoAsync(EntregaTrabajo entrega)
+    {
+        ArgumentNullException.ThrowIfNull(entrega);
+
+        if (entrega.LegajoEstudiante <= 0 || entrega.TrabajoPracticoId <= 0)
+        {
+            throw new ArgumentException("La entrega debe tener un estudiante y un trabajo práctico válidos.", nameof(entrega));
+        }
+
+        await InitializeAsync();
+        var existente = await GetEntregaTrabajoAsync(entrega.LegajoEstudiante, entrega.TrabajoPracticoId);
+
+        if (existente is not null && existente.Id != entrega.Id)
+        {
+            entrega.Id = existente.Id;
+        }
+
+        entrega.FechaEntrega = entrega.Entregado
+            ? entrega.FechaEntrega ?? DateTime.Now
+            : null;
+
+        return entrega.Id > 0
+            ? await _database.UpdateAsync(entrega)
+            : await _database.InsertAsync(entrega);
+    }
+
+    public async Task<int> DeleteEntregaTrabajoAsync(EntregaTrabajo entrega)
+    {
+        ArgumentNullException.ThrowIfNull(entrega);
+        await InitializeAsync();
+        return await _database.DeleteAsync(entrega);
     }
 
     private async Task MigrarEstadosAsistenciaAsync()

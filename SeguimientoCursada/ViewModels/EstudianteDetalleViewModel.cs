@@ -23,11 +23,15 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         VolverCommand = new Command(async () => await Shell.Current.GoToAsync(".."));
         ActualizarAsistenciaCommand = new Command<AsistenciaHistorialViewModel>(
             async asistencia => await ActualizarAsistenciaAsync(asistencia));
+        ActualizarEntregaCommand = new Command<EntregaTrabajoViewModel>(
+            async entrega => await ActualizarEntregaAsync(entrega));
     }
 
     public Estudiante? Estudiante { get; private set; }
 
     public ObservableCollection<AsistenciaHistorialViewModel> Historial { get; } = new();
+
+    public ObservableCollection<EntregaTrabajoViewModel> TrabajosPracticos { get; } = new();
 
     public string Legajo
     {
@@ -76,6 +80,18 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public string MotivoRiesgo { get; private set; } = string.Empty;
 
+    public decimal PorcentajeAsistencia { get; private set; }
+
+    public int ClasesAsistidas { get; private set; }
+
+    public int TotalClasesConfiguradas { get; private set; }
+
+    public decimal PorcentajeEntregas { get; private set; }
+
+    public int TrabajosEntregados { get; private set; }
+
+    public int TotalTrabajosObligatorios { get; private set; }
+
     public IReadOnlyList<string> EstadosAsistencia => EstadoAsistencia.Valores;
 
     public string Mensaje
@@ -88,10 +104,42 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public Command<AsistenciaHistorialViewModel> ActualizarAsistenciaCommand { get; }
 
+    public Command<EntregaTrabajoViewModel> ActualizarEntregaCommand { get; }
+
     public bool EstaCargando
     {
         get => _estaCargando;
         private set => SetProperty(ref _estaCargando, value);
+    }
+
+    private async Task ActualizarEntregaAsync(EntregaTrabajoViewModel? trabajo)
+    {
+        if (trabajo is null || trabajo.Trabajo.Id <= 0 || _legajo <= 0)
+        {
+            Mensaje = "No se seleccionó un trabajo práctico válido.";
+            return;
+        }
+
+        try
+        {
+            await _databaseService.SaveEntregaTrabajoAsync(new EntregaTrabajo
+            {
+                Id = trabajo.Entrega?.Id ?? 0,
+                LegajoEstudiante = _legajo,
+                TrabajoPracticoId = trabajo.Trabajo.Id,
+                Entregado = trabajo.Entregado,
+                FechaEntrega = trabajo.Entrega?.FechaEntrega
+            });
+
+            var entrega = await _databaseService.GetEntregaTrabajoAsync(_legajo, trabajo.Trabajo.Id);
+            trabajo.ActualizarEntrega(entrega);
+            await RecalcularRiesgoAsync();
+            Mensaje = "Entrega actualizada correctamente.";
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudo actualizar la entrega: {ex.Message}";
+        }
     }
 
     private async Task ActualizarAsistenciaAsync(AsistenciaHistorialViewModel? historial)
@@ -165,9 +213,18 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
                 Historial.Add(new AsistenciaHistorialViewModel(asistencia));
             }
 
-            var resultadoRiesgo = RiesgoEstudianteService.Calcular(Estudiante, asistencias);
-            NivelRiesgo = resultadoRiesgo.Nivel.ToString();
-            MotivoRiesgo = resultadoRiesgo.Motivo;
+            var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+            var entregas = await _databaseService.GetEntregasPorLegajoAsync(_legajo);
+            TrabajosPracticos.Clear();
+
+            foreach (var trabajo in trabajos.OrderBy(trabajo => trabajo.Titulo))
+            {
+                TrabajosPracticos.Add(new EntregaTrabajoViewModel(
+                    trabajo,
+                    entregas.FirstOrDefault(entrega => entrega.TrabajoPracticoId == trabajo.Id)));
+            }
+
+            await RecalcularRiesgoAsync();
             NotificarDatos();
         }
         catch (Exception ex)
@@ -191,6 +248,42 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalClases));
         OnPropertyChanged(nameof(NivelRiesgo));
         OnPropertyChanged(nameof(MotivoRiesgo));
+        OnPropertyChanged(nameof(PorcentajeAsistencia));
+        OnPropertyChanged(nameof(ClasesAsistidas));
+        OnPropertyChanged(nameof(TotalClasesConfiguradas));
+        OnPropertyChanged(nameof(PorcentajeEntregas));
+        OnPropertyChanged(nameof(TrabajosEntregados));
+        OnPropertyChanged(nameof(TotalTrabajosObligatorios));
+        OnPropertyChanged(nameof(TrabajosPracticos));
+    }
+
+    private async Task RecalcularRiesgoAsync()
+    {
+        if (Estudiante is null)
+        {
+            return;
+        }
+
+        var asistencias = await _databaseService.GetAsistenciasPorLegajoAsync(_legajo);
+        var totalClases = await _databaseService.GetTotalClasesAsync();
+        var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+        var entregas = await _databaseService.GetEntregasPorLegajoAsync(_legajo);
+        var resultado = RiesgoEstudianteService.Calcular(
+            Estudiante,
+            asistencias,
+            totalClases,
+            trabajos,
+            entregas);
+
+        NivelRiesgo = resultado.Nivel.ToString();
+        MotivoRiesgo = resultado.Motivo;
+        PorcentajeAsistencia = resultado.PorcentajeAsistencia;
+        ClasesAsistidas = resultado.ClasesAsistidas;
+        TotalClasesConfiguradas = resultado.TotalClasesConfiguradas;
+        PorcentajeEntregas = resultado.PorcentajeEntregas;
+        TrabajosEntregados = resultado.TrabajosEntregados;
+        TotalTrabajosObligatorios = resultado.TotalTrabajosObligatorios;
+        NotificarDatos();
     }
 
     private bool SetProperty<T>(ref T backingField, T value, [CallerMemberName] string? propertyName = null)

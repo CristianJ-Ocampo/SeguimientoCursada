@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:SeguimientoCursada.Models"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.TrabajosPracticosPage"
+             x:Name="PageRoot"
+             x:DataType="viewModels:TrabajosPracticosViewModel"
+             Title="Trabajos prácticos">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="16">
+            <Label Text="Trabajos prácticos obligatorios"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+
+            <Entry Placeholder="Título del trabajo práctico"
+                   Text="{Binding Titulo}" />
+            <Entry Placeholder="Descripción opcional"
+                   Text="{Binding Descripcion}" />
+
+            <HorizontalStackLayout Spacing="12">
+                <CheckBox IsChecked="{Binding Obligatorio}" />
+                <Label Text="Trabajo obligatorio"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <HorizontalStackLayout Spacing="12">
+                <Button Text="Guardar"
+                        Command="{Binding GuardarCommand}"
+                        HorizontalOptions="FillAndExpand" />
+                <Button Text="Nuevo"
+                        Command="{Binding NuevoCommand}"
+                        HorizontalOptions="FillAndExpand" />
+            </HorizontalStackLayout>
+
+            <Label Text="{Binding Mensaje}"
+                   TextColor="Green" />
+
+            <CollectionView ItemsSource="{Binding Trabajos}"
+                            SelectionMode="Single"
+                            SelectedItem="{Binding TrabajoSeleccionado}"
+                            EmptyView="No hay trabajos prácticos configurados.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:TrabajoPractico">
+                        <Border Stroke="LightGray"
+                                StrokeThickness="1"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="12">
+                                <VerticalStackLayout>
+                                    <Label Text="{Binding Titulo}"
+                                           FontAttributes="Bold" />
+                                    <Label Text="{Binding Descripcion}" />
+                                    <Label Text="Obligatorio"
+                                           IsVisible="{Binding Obligatorio}"
+                                           TextColor="DarkBlue" />
+                                    <Label Text="Opcional"
+                                           IsVisible="{Binding EsOpcional}"
+                                           TextColor="Gray" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Text="Eliminar"
+                                        Command="{Binding Source={x:Reference PageRoot}, Path=BindingContext.EliminarCommand}"
+                                        CommandParameter="{Binding .}"
+                                        VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

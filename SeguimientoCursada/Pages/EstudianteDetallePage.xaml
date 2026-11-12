@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:SeguimientoCursada.Models"
              xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
              x:Class="SeguimientoCursada.Pages.EstudianteDetallePage"
              x:Name="DetallePageRoot"
@@ -52,6 +53,21 @@
                 </Border>
             </Grid>
 
+            <Border Stroke="LightGray"
+                    StrokeThickness="1"
+                    Padding="12">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Indicadores académicos"
+                           FontAttributes="Bold" />
+                    <Label Text="{Binding PorcentajeAsistencia, StringFormat='Asistencia: {0:0.##}%'}" />
+                    <Label Text="{Binding ClasesAsistidas, StringFormat='Clases asistidas o justificadas: {0}'}" />
+                    <Label Text="{Binding TotalClasesConfiguradas, StringFormat='Total de días de clase configurados: {0}'}" />
+                    <Label Text="{Binding PorcentajeEntregas, StringFormat='Entregas de TPs obligatorios: {0:0.##}%'}" />
+                    <Label Text="{Binding TrabajosEntregados, StringFormat='TPs entregados: {0}'}" />
+                    <Label Text="{Binding TotalTrabajosObligatorios, StringFormat='TPs obligatorios: {0}'}" />
+                </VerticalStackLayout>
+            </Border>
+
             <Label Text="Historial de asistencia"
                    Style="{StaticResource SubHeadline}"
                    SemanticProperties.HeadingLevel="Level2" />
@@ -76,6 +92,38 @@
                                     Command="{Binding Source={x:Reference DetallePageRoot}, Path=BindingContext.ActualizarAsistenciaCommand}"
                                     CommandParameter="{Binding .}"
                                     VerticalOptions="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Trabajos prácticos obligatorios"
+                   Style="{StaticResource SubHeadline}"
+                   SemanticProperties.HeadingLevel="Level2" />
+
+            <CollectionView ItemsSource="{Binding TrabajosPracticos}"
+                            HeightRequest="300"
+                            SelectionMode="None"
+                            EmptyView="No hay trabajos prácticos obligatorios configurados.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:EntregaTrabajoViewModel">
+                        <Grid Padding="12"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <VerticalStackLayout>
+                                <Label Text="{Binding Titulo}"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding Descripcion}"
+                                       IsVisible="{Binding TieneDescripcion}" />
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="1"
+                                                   Spacing="8"
+                                                   VerticalOptions="Center">
+                                <Label Text="Entregado"
+                                       VerticalOptions="Center" />
+                                <CheckBox IsChecked="{Binding Entregado}"
+                                          CheckedChanged="OnEntregaChanged" />
+                            </HorizontalStackLayout>
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

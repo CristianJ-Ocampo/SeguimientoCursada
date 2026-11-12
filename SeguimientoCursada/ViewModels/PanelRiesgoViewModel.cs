@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using SeguimientoCursada.Models;
 using SeguimientoCursada.Pages;
 using SeguimientoCursada.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SeguimientoCursada.ViewModels;
 
@@ -13,9 +14,12 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 {
     private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
     private string _comisionSeleccionada = "1° A";
+    private readonly DatabaseService _databaseService;
 
     public PanelRiesgoViewModel()
     {
+        _databaseService = Application.Current?.Handler?.MauiContext?.Services.GetRequiredService<DatabaseService>()
+            ?? throw new InvalidOperationException("DatabaseService no está disponible.");
         AbrirDetalleCommand = new Command(async parameter =>
         {
             if (int.TryParse(
@@ -29,7 +33,7 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
         });
         EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += FuenteCambiada;
         AsistenciaViewModel.TodasLasAsistencias.CollectionChanged += FuenteCambiada;
-        ActualizarPanel();
+        _ = ActualizarPanelAsync();
     }
 
     public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
@@ -41,7 +45,7 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _comisionSeleccionada, value))
             {
-                ActualizarPanel();
+                _ = ActualizarPanelAsync();
             }
         }
     }
@@ -57,7 +61,7 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 
     private void FuenteCambiada(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        ActualizarPanel();
+        _ = ActualizarPanelAsync();
     }
 
     private static Task AbrirDetalleAsync(int legajo)
@@ -66,13 +70,22 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
             $"{nameof(EstudianteDetallePage)}?Legajo={legajo.ToString(CultureInfo.InvariantCulture)}");
     }
 
-    private void ActualizarPanel()
+    private async Task ActualizarPanelAsync()
     {
+        var totalClases = await _databaseService.GetTotalClasesAsync();
+        var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+        var asistencias = await _databaseService.GetAsistenciasAsync();
+        var entregas = await _databaseService.GetEntregasAsync();
         Estudiantes.Clear();
 
         foreach (var estudiante in EstudiantesViewModel.TodosLosEstudiantes
                      .Where(estudiante => estudiante.Comision == ComisionSeleccionada)
-                     .Select(estudiante => new EstudianteRiesgoViewModel(estudiante))
+                      .Select(estudiante => new EstudianteRiesgoViewModel(
+                          estudiante,
+                          asistencias,
+                          totalClases,
+                          trabajos,
+                          entregas))
                      .OrderByDescending(estudiante => estudiante.PrioridadRiesgo)
                      .ThenByDescending(estudiante => estudiante.Inasistencias)
                      .ThenBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
@@ -104,16 +117,26 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 
 public class EstudianteRiesgoViewModel
 {
-    public EstudianteRiesgoViewModel(Estudiante estudiante)
+    public EstudianteRiesgoViewModel(
+        Estudiante estudiante,
+        IEnumerable<Asistencia> asistencias,
+        int totalClases,
+        IEnumerable<TrabajoPractico> trabajos,
+        IEnumerable<EntregaTrabajo> entregas)
     {
         var resultado = RiesgoEstudianteService.Calcular(
             estudiante,
-            AsistenciaViewModel.TodasLasAsistencias);
+            asistencias,
+            totalClases,
+            trabajos,
+            entregas);
 
         Legajo = estudiante.Legajo;
         Apellido = estudiante.Apellido;
         Nombre = estudiante.Nombre;
         Inasistencias = resultado.Inasistencias;
+        PorcentajeAsistencia = resultado.PorcentajeAsistencia;
+        PorcentajeEntregas = resultado.PorcentajeEntregas;
         NivelRiesgo = resultado.Nivel.ToString();
         MotivoRiesgo = resultado.Motivo;
         PrioridadRiesgo = resultado.Nivel switch
@@ -128,6 +151,8 @@ public class EstudianteRiesgoViewModel
     public string Apellido { get; }
     public string Nombre { get; }
     public int Inasistencias { get; }
+    public decimal PorcentajeAsistencia { get; }
+    public decimal PorcentajeEntregas { get; }
     public string NivelRiesgo { get; }
     public string MotivoRiesgo { get; }
     public int PrioridadRiesgo { get; }

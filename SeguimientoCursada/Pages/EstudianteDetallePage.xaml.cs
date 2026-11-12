@@ -14,4 +14,12 @@ public partial class EstudianteDetallePage : ContentPage
         BindingContext = _viewModel;
     }
 
+    private async void OnEntregaChanged(object? sender, CheckedChangedEventArgs e)
+    {
+        if (sender is CheckBox { BindingContext: EntregaTrabajoViewModel entrega })
+        {
+            _viewModel.ActualizarEntregaCommand.Execute(entrega);
+        }
+    }
+
 }
