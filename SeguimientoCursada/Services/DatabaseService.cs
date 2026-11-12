@@ -36,6 +36,7 @@ public sealed class DatabaseService
 
             await _database.CreateTableAsync<Estudiante>();
             await _database.CreateTableAsync<Asistencia>();
+            await MigrarEstadosAsistenciaAsync();
             _initialized = true;
         }
         finally
@@ -108,7 +109,22 @@ public sealed class DatabaseService
     {
         ArgumentNullException.ThrowIfNull(asistencia);
         await InitializeAsync();
+        EstadoAsistencia.Aplicar(asistencia, EstadoAsistencia.Normalizar(asistencia));
         return await _database.InsertOrReplaceAsync(asistencia);
+    }
+
+    public async Task<int> UpdateAsistenciaAsync(Asistencia asistencia)
+    {
+        ArgumentNullException.ThrowIfNull(asistencia);
+
+        if (asistencia.Id <= 0)
+        {
+            throw new ArgumentException("La asistencia debe tener un Id válido.", nameof(asistencia));
+        }
+
+        await InitializeAsync();
+        EstadoAsistencia.Aplicar(asistencia, EstadoAsistencia.Normalizar(asistencia));
+        return await _database.UpdateAsync(asistencia);
     }
 
     public async Task<int> DeleteAsistenciaAsync(Asistencia asistencia)
@@ -116,5 +132,31 @@ public sealed class DatabaseService
         ArgumentNullException.ThrowIfNull(asistencia);
         await InitializeAsync();
         return await _database.DeleteAsync(asistencia);
+    }
+
+    private async Task MigrarEstadosAsistenciaAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('Asistencia') WHERE name = 'Estado'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE Asistencia ADD COLUMN Estado TEXT NOT NULL DEFAULT ''");
+        }
+
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+
+        foreach (var asistencia in asistencias)
+        {
+            var estadoNormalizado = EstadoAsistencia.Normalizar(asistencia);
+
+            if (asistencia.Estado != estadoNormalizado ||
+                asistencia.Presente != (estadoNormalizado == EstadoAsistencia.Presente))
+            {
+                EstadoAsistencia.Aplicar(asistencia, estadoNormalizado);
+                await _database.UpdateAsync(asistencia);
+            }
+        }
     }
 }

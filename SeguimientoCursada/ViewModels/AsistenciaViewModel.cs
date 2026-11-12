@@ -100,6 +100,9 @@ public class AsistenciaViewModel : INotifyPropertyChanged
                 LegajoEstudiante = estudiante.Legajo,
                 Fecha = fecha,
                 Presente = estudiante.Presente,
+                Estado = estudiante.Presente
+                    ? EstadoAsistencia.Presente
+                    : EstadoAsistencia.Ausente,
                 Comision = ComisionSeleccionada
             });
         }

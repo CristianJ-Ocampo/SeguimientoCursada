@@ -19,7 +19,8 @@ public static class RiesgoEstudianteService
     public static ResultadoRiesgo Calcular(Estudiante estudiante, IEnumerable<Asistencia> asistencias)
     {
         var inasistencias = asistencias.Count(asistencia =>
-            asistencia.LegajoEstudiante == estudiante.Legajo && !asistencia.Presente);
+            asistencia.LegajoEstudiante == estudiante.Legajo &&
+            EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Ausente);
 
         var nivel = inasistencias switch
         {

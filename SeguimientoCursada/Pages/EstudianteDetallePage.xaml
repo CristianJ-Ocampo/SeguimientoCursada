@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
              x:Class="SeguimientoCursada.Pages.EstudianteDetallePage"
+             x:Name="DetallePageRoot"
              x:DataType="viewModels:EstudianteDetalleViewModel"
              Title="Ficha del estudiante">
     <ScrollView>
@@ -61,14 +62,20 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="viewModels:AsistenciaHistorialViewModel">
                         <Grid Padding="12"
-                              ColumnDefinitions="*,Auto"
+                              ColumnDefinitions="*,Auto,Auto"
                               ColumnSpacing="12">
                             <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
                                    VerticalOptions="Center" />
-                            <Label Grid.Column="1"
-                                   Text="{Binding Estado}"
-                                   FontAttributes="Bold"
-                                   VerticalOptions="Center" />
+                            <Picker Grid.Column="1"
+                                    ItemsSource="{Binding Source={x:Reference DetallePageRoot}, Path=BindingContext.EstadosAsistencia}"
+                                    SelectedItem="{Binding EstadoSeleccionado}"
+                                    Title="Estado"
+                                    VerticalOptions="Center" />
+                            <Button Grid.Column="2"
+                                    Text="Guardar"
+                                    Command="{Binding Source={x:Reference DetallePageRoot}, Path=BindingContext.ActualizarAsistenciaCommand}"
+                                    CommandParameter="{Binding .}"
+                                    VerticalOptions="Center" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

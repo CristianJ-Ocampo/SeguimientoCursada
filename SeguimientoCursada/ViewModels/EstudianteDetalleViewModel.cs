@@ -21,6 +21,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     {
         _databaseService = databaseService;
         VolverCommand = new Command(async () => await Shell.Current.GoToAsync(".."));
+        ActualizarAsistenciaCommand = new Command<AsistenciaHistorialViewModel>(
+            async asistencia => await ActualizarAsistenciaAsync(asistencia));
     }
 
     public Estudiante? Estudiante { get; private set; }
@@ -65,13 +67,16 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public string Comision => Estudiante?.Comision ?? string.Empty;
 
-    public int TotalInasistencias => Historial.Count(asistencia => !asistencia.Presente);
+    public int TotalInasistencias => Historial.Count(
+        asistencia => asistencia.EstadoSeleccionado == EstadoAsistencia.Ausente);
 
     public int TotalClases => Historial.Count;
 
     public string NivelRiesgo { get; private set; } = "Sin datos";
 
     public string MotivoRiesgo { get; private set; } = string.Empty;
+
+    public IReadOnlyList<string> EstadosAsistencia => EstadoAsistencia.Valores;
 
     public string Mensaje
     {
@@ -81,10 +86,39 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public Command VolverCommand { get; }
 
+    public Command<AsistenciaHistorialViewModel> ActualizarAsistenciaCommand { get; }
+
     public bool EstaCargando
     {
         get => _estaCargando;
         private set => SetProperty(ref _estaCargando, value);
+    }
+
+    private async Task ActualizarAsistenciaAsync(AsistenciaHistorialViewModel? historial)
+    {
+        if (historial is null || historial.Asistencia.Id <= 0)
+        {
+            Mensaje = "No se seleccionó una asistencia válida para actualizar.";
+            return;
+        }
+
+        if (!EstadoAsistencia.Valores.Contains(historial.EstadoSeleccionado))
+        {
+            Mensaje = "El estado de asistencia seleccionado no es válido.";
+            return;
+        }
+
+        try
+        {
+            EstadoAsistencia.Aplicar(historial.Asistencia, historial.EstadoSeleccionado);
+            await _databaseService.UpdateAsistenciaAsync(historial.Asistencia);
+            await CargarDatosAsync(_legajo);
+            Mensaje = "Asistencia actualizada correctamente.";
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudo actualizar la asistencia: {ex.Message}";
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -179,16 +213,44 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
 public sealed class AsistenciaHistorialViewModel
 {
+    private string _estadoSeleccionado;
+
     public AsistenciaHistorialViewModel(Asistencia asistencia)
     {
+        Asistencia = asistencia;
         Fecha = asistencia.Fecha;
-        Presente = asistencia.Presente;
-        Estado = asistencia.Presente ? "Presente" : "Ausente";
+        _estadoSeleccionado = EstadoAsistencia.Normalizar(asistencia);
     }
+
+    public Asistencia Asistencia { get; }
 
     public DateTime Fecha { get; }
 
-    public bool Presente { get; }
+    public bool Presente => EstadoSeleccionado == EstadoAsistencia.Presente;
 
-    public string Estado { get; }
+    public string Estado => EstadoSeleccionado;
+
+    public string EstadoSeleccionado
+    {
+        get => _estadoSeleccionado;
+        set
+        {
+            if (_estadoSeleccionado == value)
+            {
+                return;
+            }
+
+            _estadoSeleccionado = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Estado));
+            OnPropertyChanged(nameof(Presente));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
