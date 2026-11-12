@@ -80,6 +80,9 @@
 	  <MauiXaml Update="Pages\AsistenciaPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Pages\CalendarioClasesPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Pages\EstudianteDetallePage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
@@ -88,6 +91,9 @@
 	  </MauiXaml>
 	  <MauiXaml Update="Pages\PanelRiesgoPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Pages\CalendarioClasesPage.xaml">
+		<Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Pages\EstudianteDetallePage.xaml">
 		<Generator>MSBuild:Compile</Generator>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:SeguimientoCursada.Models"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.CalendarioClasesPage"
+             x:DataType="viewModels:CalendarioClasesViewModel"
+             x:Name="PageRoot"
+             Title="Calendario de clases">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="16">
+            <Label Text="Definir calendario de clases"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Fecha" />
+                <DatePicker Date="{Binding FechaSeleccionada}"
+                            Format="dd/MM/yyyy" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Descripción u observación" />
+                <Entry Placeholder="Clase normal, parcial, feriado"
+                       Text="{Binding Descripcion}" />
+            </VerticalStackLayout>
+
+            <HorizontalStackLayout Spacing="12">
+                <CheckBox IsChecked="{Binding EsDiaClase}" />
+                <Label Text="Es día de cursada"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <Button Text="Guardar fecha"
+                    Command="{Binding GuardarFechaCommand}" />
+
+            <Label Text="{Binding TotalClases, StringFormat='Total de clases configuradas: {0}'}"
+                   FontAttributes="Bold" />
+
+            <Label Text="{Binding Mensaje}"
+                   TextColor="Green" />
+
+            <CollectionView ItemsSource="{Binding Fechas}"
+                            EmptyView="No hay fechas configuradas."
+                            SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:FechaClase">
+                        <Border Stroke="LightGray"
+                                StrokeThickness="1"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="12">
+                                <VerticalStackLayout>
+                                    <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
+                                           FontAttributes="Bold" />
+                                    <Label Text="{Binding Descripcion}"
+                                           IsVisible="{Binding TieneDescripcion}" />
+                                    <Label Text="Día de cursada"
+                                           IsVisible="{Binding EsDiaClase}"
+                                           TextColor="Green" />
+                                    <Label Text="No es día de cursada"
+                                           IsVisible="{Binding EsDiaNoClase}"
+                                           TextColor="Gray" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Text="Eliminar"
+                                        Command="{Binding Source={x:Reference PageRoot}, Path=BindingContext.EliminarFechaCommand}"
+                                        CommandParameter="{Binding .}"
+                                        VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

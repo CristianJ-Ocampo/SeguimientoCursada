@@ -8,6 +8,7 @@ namespace SeguimientoCursada
         {
             InitializeComponent();
             Routing.RegisterRoute(nameof(EstudianteDetallePage), typeof(EstudianteDetallePage));
+            Routing.RegisterRoute(nameof(CalendarioClasesPage), typeof(CalendarioClasesPage));
         }
     }
 }

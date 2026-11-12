@@ -36,6 +36,7 @@ public sealed class DatabaseService
 
             await _database.CreateTableAsync<Estudiante>();
             await _database.CreateTableAsync<Asistencia>();
+            await _database.CreateTableAsync<FechaClase>();
             await MigrarEstadosAsistenciaAsync();
             _initialized = true;
         }
@@ -132,6 +133,56 @@ public sealed class DatabaseService
         ArgumentNullException.ThrowIfNull(asistencia);
         await InitializeAsync();
         return await _database.DeleteAsync(asistencia);
+    }
+
+    public async Task<List<FechaClase>> GetFechasClaseAsync()
+    {
+        await InitializeAsync();
+        return await _database.Table<FechaClase>()
+            .OrderBy(fechaClase => fechaClase.Fecha)
+            .ToListAsync();
+    }
+
+    public async Task<FechaClase?> GetFechaClaseAsync(DateTime fecha)
+    {
+        await InitializeAsync();
+        var fechaDia = fecha.Date;
+
+        return await _database.Table<FechaClase>()
+            .FirstOrDefaultAsync(fechaClase => fechaClase.Fecha == fechaDia);
+    }
+
+    public async Task<int> SaveFechaClaseAsync(FechaClase fechaClase)
+    {
+        ArgumentNullException.ThrowIfNull(fechaClase);
+        await InitializeAsync();
+
+        fechaClase.Fecha = fechaClase.Fecha.Date;
+        var existente = await GetFechaClaseAsync(fechaClase.Fecha);
+
+        if (existente is not null && existente.Id != fechaClase.Id)
+        {
+            fechaClase.Id = existente.Id;
+        }
+
+        return fechaClase.Id > 0
+            ? await _database.UpdateAsync(fechaClase)
+            : await _database.InsertAsync(fechaClase);
+    }
+
+    public async Task<int> DeleteFechaClaseAsync(FechaClase fechaClase)
+    {
+        ArgumentNullException.ThrowIfNull(fechaClase);
+        await InitializeAsync();
+        return await _database.DeleteAsync(fechaClase);
+    }
+
+    public async Task<int> GetTotalClasesAsync()
+    {
+        await InitializeAsync();
+        return await _database.Table<FechaClase>()
+            .Where(fechaClase => fechaClase.EsDiaClase)
+            .CountAsync();
     }
 
     private async Task MigrarEstadosAsistenciaAsync()

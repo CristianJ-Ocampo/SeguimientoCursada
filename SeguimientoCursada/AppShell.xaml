@@ -17,6 +17,11 @@
         Route="AsistenciaPage" />
 
     <ShellContent
+        Title="Calendario de clases"
+        ContentTemplate="{DataTemplate pages:CalendarioClasesPage}"
+        Route="CalendarioClasesPage" />
+
+    <ShellContent
         Title="Panel de riesgo"
         ContentTemplate="{DataTemplate pages:PanelRiesgoPage}"
         Route="PanelRiesgoPage" />
