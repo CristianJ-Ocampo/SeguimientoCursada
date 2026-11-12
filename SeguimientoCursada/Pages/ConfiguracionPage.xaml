@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.ConfiguracionPage"
+             x:DataType="viewModels:ConfiguracionViewModel"
+             Title="Configuración">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="16">
+            <Label Text="Configuración del riesgo académico"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+
+            <Label Text="Definí los porcentajes mínimos utilizados para clasificar el riesgo." />
+
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Asistencia mínima regular (%)" />
+                <Entry Keyboard="Numeric"
+                       Text="{Binding AsistenciaRegular}" />
+                <Label Text="Por debajo de este valor la asistencia genera riesgo." />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Límite de asistencia crítica (%)" />
+                <Entry Keyboard="Numeric"
+                       Text="{Binding AsistenciaCritica}" />
+                <Label Text="Por debajo de este valor la asistencia se considera crítica." />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Entregas mínimas de TPs obligatorios (%)" />
+                <Entry Keyboard="Numeric"
+                       Text="{Binding EntregasMinimas}" />
+                <Label Text="Por debajo de este valor las entregas generan riesgo." />
+            </VerticalStackLayout>
+
+            <HorizontalStackLayout Spacing="12">
+                <Button Text="Guardar"
+                        Command="{Binding GuardarCommand}"
+                        HorizontalOptions="FillAndExpand" />
+                <Button Text="Restaurar valores predeterminados"
+                        Command="{Binding RestaurarCommand}"
+                        HorizontalOptions="FillAndExpand" />
+            </HorizontalStackLayout>
+
+            <Label Text="{Binding Mensaje}"
+                   TextColor="Green" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

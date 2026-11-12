@@ -15,11 +15,16 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
     private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
     private string _comisionSeleccionada = "1° A";
     private readonly DatabaseService _databaseService;
+    private readonly ConfiguracionRiesgoService _configuracionRiesgoService;
 
     public PanelRiesgoViewModel()
     {
         _databaseService = Application.Current?.Handler?.MauiContext?.Services.GetRequiredService<DatabaseService>()
             ?? throw new InvalidOperationException("DatabaseService no está disponible.");
+        _configuracionRiesgoService = Application.Current?.Handler?.MauiContext?.Services
+            .GetRequiredService<ConfiguracionRiesgoService>()
+            ?? throw new InvalidOperationException("ConfiguracionRiesgoService no está disponible.");
+        _configuracionRiesgoService.ConfiguracionCambió += ConfiguracionCambió;
         AbrirDetalleCommand = new Command(async parameter =>
         {
             if (int.TryParse(
@@ -33,6 +38,11 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
         });
         EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += FuenteCambiada;
         AsistenciaViewModel.TodasLasAsistencias.CollectionChanged += FuenteCambiada;
+        _ = ActualizarPanelAsync();
+    }
+
+    private void ConfiguracionCambió(object? sender, EventArgs e)
+    {
         _ = ActualizarPanelAsync();
     }
 
@@ -85,7 +95,8 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
                           asistencias,
                           totalClases,
                           trabajos,
-                          entregas))
+                          entregas,
+                          _configuracionRiesgoService))
                      .OrderByDescending(estudiante => estudiante.PrioridadRiesgo)
                      .ThenByDescending(estudiante => estudiante.Inasistencias)
                      .ThenBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
@@ -122,14 +133,16 @@ public class EstudianteRiesgoViewModel
         IEnumerable<Asistencia> asistencias,
         int totalClases,
         IEnumerable<TrabajoPractico> trabajos,
-        IEnumerable<EntregaTrabajo> entregas)
+        IEnumerable<EntregaTrabajo> entregas,
+        ConfiguracionRiesgoService configuracion)
     {
         var resultado = RiesgoEstudianteService.Calcular(
             estudiante,
             asistencias,
             totalClases,
             trabajos,
-            entregas);
+            entregas,
+            configuracion);
 
         Legajo = estudiante.Legajo;
         Apellido = estudiante.Apellido;

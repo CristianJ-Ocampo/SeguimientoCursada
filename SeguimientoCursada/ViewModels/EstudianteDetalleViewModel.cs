@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 using SeguimientoCursada.Models;
 using SeguimientoCursada.Services;
 
@@ -13,13 +14,17 @@ namespace SeguimientoCursada.ViewModels;
 public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 {
     private readonly DatabaseService _databaseService;
+    private readonly ConfiguracionRiesgoService _configuracionRiesgoService;
     private string _mensaje = string.Empty;
     private bool _estaCargando;
     private int _legajo;
 
-    public EstudianteDetalleViewModel(DatabaseService databaseService)
+    public EstudianteDetalleViewModel(
+        DatabaseService databaseService,
+        ConfiguracionRiesgoService configuracionRiesgoService)
     {
         _databaseService = databaseService;
+        _configuracionRiesgoService = configuracionRiesgoService;
         VolverCommand = new Command(async () => await Shell.Current.GoToAsync(".."));
         ActualizarAsistenciaCommand = new Command<AsistenciaHistorialViewModel>(
             async asistencia => await ActualizarAsistenciaAsync(asistencia));
@@ -77,6 +82,13 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public int TotalClases => Historial.Count;
 
     public string NivelRiesgo { get; private set; } = "Sin datos";
+
+    public Color ColorNivelRiesgo => NivelRiesgo switch
+    {
+        "Bajo" => Colors.Green,
+        "Medio" => Colors.Goldenrod,
+        _ => Colors.DarkRed
+    };
 
     public string MotivoRiesgo { get; private set; } = string.Empty;
 
@@ -247,6 +259,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalInasistencias));
         OnPropertyChanged(nameof(TotalClases));
         OnPropertyChanged(nameof(NivelRiesgo));
+        OnPropertyChanged(nameof(ColorNivelRiesgo));
         OnPropertyChanged(nameof(MotivoRiesgo));
         OnPropertyChanged(nameof(PorcentajeAsistencia));
         OnPropertyChanged(nameof(ClasesAsistidas));
@@ -273,7 +286,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             asistencias,
             totalClases,
             trabajos,
-            entregas);
+            entregas,
+            _configuracionRiesgoService);
 
         NivelRiesgo = resultado.Nivel.ToString();
         MotivoRiesgo = resultado.Motivo;

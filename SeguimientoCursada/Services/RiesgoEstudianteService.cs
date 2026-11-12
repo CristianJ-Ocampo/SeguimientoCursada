@@ -24,8 +24,6 @@ public static class RiesgoEstudianteService
 {
     public const int UmbralRiesgoAlto = 3;
     public const int UmbralRiesgoMedio = 1;
-    public const decimal UmbralAsistencia = 75m;
-    public const decimal UmbralEntregas = 60m;
 
     public static ResultadoRiesgo Calcular(Estudiante estudiante, IEnumerable<Asistencia> asistencias)
     {
@@ -55,12 +53,14 @@ public static class RiesgoEstudianteService
         IEnumerable<Asistencia> asistencias,
         int totalClasesConfiguradas,
         IEnumerable<TrabajoPractico> trabajosObligatorios,
-        IEnumerable<EntregaTrabajo> entregas)
+        IEnumerable<EntregaTrabajo> entregas,
+        ConfiguracionRiesgoService? configuracion = null)
     {
         ArgumentNullException.ThrowIfNull(estudiante);
         ArgumentNullException.ThrowIfNull(asistencias);
         ArgumentNullException.ThrowIfNull(trabajosObligatorios);
         ArgumentNullException.ThrowIfNull(entregas);
+        configuracion ??= new ConfiguracionRiesgoService();
 
         var asistenciasEstudiante = asistencias
             .Where(asistencia => asistencia.LegajoEstudiante == estudiante.Legajo)
@@ -83,10 +83,15 @@ public static class RiesgoEstudianteService
             ? Math.Round(trabajosEntregados * 100m / trabajos.Count, 2)
             : 100m;
 
-        var asistenciaInsuficiente = totalClasesConfiguradas > 0 && porcentajeAsistencia < UmbralAsistencia;
-        var entregasInsuficientes = trabajos.Count > 0 && porcentajeEntregas < UmbralEntregas;
+        var asistenciaCritica = totalClasesConfiguradas > 0 &&
+            porcentajeAsistencia < configuracion.AsistenciaCritica;
+        var asistenciaInsuficiente = totalClasesConfiguradas > 0 &&
+            porcentajeAsistencia < configuracion.AsistenciaRegular;
+        var entregasInsuficientes = trabajos.Count > 0 &&
+            porcentajeEntregas < configuracion.EntregasMinimas;
         var nivel = asistenciaInsuficiente || entregasInsuficientes
-            ? (inasistencias >= UmbralRiesgoAlto || (asistenciaInsuficiente && entregasInsuficientes)
+            ? (asistenciaCritica || inasistencias >= UmbralRiesgoAlto ||
+                (asistenciaInsuficiente && entregasInsuficientes)
                 ? NivelRiesgo.Alto
                 : NivelRiesgo.Medio)
             : NivelRiesgo.Bajo;
@@ -94,12 +99,16 @@ public static class RiesgoEstudianteService
         var motivos = new List<string>();
         if (asistenciaInsuficiente)
         {
-            motivos.Add($"asistencia {porcentajeAsistencia:0.##}% (mínimo {UmbralAsistencia:0}%)");
+            motivos.Add($"asistencia {porcentajeAsistencia:0.##}% (mínimo {configuracion.AsistenciaRegular:0}%)");
+            if (asistenciaCritica)
+            {
+                motivos[^1] += $", por debajo del límite crítico de {configuracion.AsistenciaCritica:0}%";
+            }
         }
 
         if (entregasInsuficientes)
         {
-            motivos.Add($"entregas {porcentajeEntregas:0.##}% (mínimo {UmbralEntregas:0}%)");
+            motivos.Add($"entregas {porcentajeEntregas:0.##}% (mínimo {configuracion.EntregasMinimas:0}%)");
         }
 
         var motivo = motivos.Count == 0

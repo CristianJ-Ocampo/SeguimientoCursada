@@ -32,7 +32,7 @@
                     <Label Grid.Row="4" Grid.Column="1"
                            Text="{Binding NivelRiesgo}"
                            FontAttributes="Bold"
-                           TextColor="DarkRed" />
+                           TextColor="{Binding ColorNivelRiesgo}" />
                     <Label Grid.Row="5" Text="Detalle:" FontAttributes="Bold" />
                     <Label Grid.Row="5" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
                 </Grid>

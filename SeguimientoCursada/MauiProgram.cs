@@ -15,7 +15,8 @@ namespace SeguimientoCursada
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 })
-                .Services.AddSingleton<DatabaseService>();
+                .Services.AddSingleton<DatabaseService>()
+                .AddSingleton<ConfiguracionRiesgoService>();
 
 #if DEBUG
     		builder.Logging.AddDebug();

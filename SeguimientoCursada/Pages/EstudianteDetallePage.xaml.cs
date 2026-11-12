@@ -10,7 +10,10 @@ public partial class EstudianteDetallePage : ContentPage
     public EstudianteDetallePage(DatabaseService databaseService)
     {
         InitializeComponent();
-        _viewModel = new EstudianteDetalleViewModel(databaseService);
+        var configuracion = Application.Current?.Handler?.MauiContext?.Services
+            .GetService<ConfiguracionRiesgoService>()
+            ?? new ConfiguracionRiesgoService();
+        _viewModel = new EstudianteDetalleViewModel(databaseService, configuracion);
         BindingContext = _viewModel;
     }
 

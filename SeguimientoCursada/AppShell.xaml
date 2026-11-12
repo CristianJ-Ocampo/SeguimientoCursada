@@ -31,4 +31,9 @@
         ContentTemplate="{DataTemplate pages:PanelRiesgoPage}"
         Route="PanelRiesgoPage" />
 
+    <ShellContent
+        Title="Configuración"
+        ContentTemplate="{DataTemplate pages:ConfiguracionPage}"
+        Route="ConfiguracionPage" />
+
 </Shell>

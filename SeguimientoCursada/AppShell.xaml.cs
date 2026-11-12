@@ -10,6 +10,7 @@ namespace SeguimientoCursada
             Routing.RegisterRoute(nameof(EstudianteDetallePage), typeof(EstudianteDetallePage));
             Routing.RegisterRoute(nameof(CalendarioClasesPage), typeof(CalendarioClasesPage));
             Routing.RegisterRoute(nameof(TrabajosPracticosPage), typeof(TrabajosPracticosPage));
+            Routing.RegisterRoute(nameof(ConfiguracionPage), typeof(ConfiguracionPage));
         }
     }
 }
