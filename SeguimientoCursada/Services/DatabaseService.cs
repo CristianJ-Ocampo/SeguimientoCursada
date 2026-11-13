@@ -83,6 +83,19 @@ public sealed class DatabaseService
         return await _database.InsertOrReplaceAsync(estudiante);
     }
 
+    public async Task<int> SaveEstudiantesAsync(IReadOnlyList<Estudiante> estudiantes)
+    {
+        ArgumentNullException.ThrowIfNull(estudiantes);
+
+        if (estudiantes.Count == 0)
+        {
+            return 0;
+        }
+
+        await InitializeAsync();
+        return await _database.InsertAllAsync(estudiantes, runInTransaction: true);
+    }
+
     public async Task<int> DeleteEstudianteAsync(Estudiante estudiante)
     {
         ArgumentNullException.ThrowIfNull(estudiante);

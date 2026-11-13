@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using SeguimientoCursada.Models;
 using SeguimientoCursada.Pages;
@@ -18,6 +19,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     private string _comisionSeleccionada = "1° A";
     private string _mensajeValidacion = string.Empty;
     private readonly ConfiguracionRiesgoService _configuracionRiesgoService;
+    private bool _importandoCsv;
     private int _totalClases;
     private IReadOnlyList<TrabajoPractico> _trabajos = Array.Empty<TrabajoPractico>();
     private IReadOnlyList<Asistencia> _asistencias = Array.Empty<Asistencia>();
@@ -35,6 +37,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             .GetRequiredService<ConfiguracionRiesgoService>()
             ?? new ConfiguracionRiesgoService();
         AgregarEstudianteCommand = new Command(async () => await AgregarEstudianteAsync());
+        ImportarCsvCommand = new Command(async () => await ImportarCsvAsync());
         AbrirDetalleCommand = new Command(async parameter =>
         {
             if (TryObtenerLegajo(parameter, out var legajo))
@@ -98,6 +101,8 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     }
 
     public Command AgregarEstudianteCommand { get; }
+
+    public Command ImportarCsvCommand { get; }
 
     public Command AbrirDetalleCommand { get; }
 
@@ -168,6 +173,321 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         Nombre = string.Empty;
         MensajeValidacion = string.Empty;
         ActualizarNominaFiltrada();
+    }
+
+    private async Task ImportarCsvAsync()
+    {
+        if (_importandoCsv)
+        {
+            return;
+        }
+
+        var comision = ComisionSeleccionada;
+
+        if (string.IsNullOrWhiteSpace(comision))
+        {
+            await MostrarAlertaAsync("Debe seleccionar una comisión antes de importar estudiantes.");
+            return;
+        }
+
+        _importandoCsv = true;
+
+        try
+        {
+            var opciones = new PickOptions
+            {
+                PickerTitle = "Seleccione un archivo CSV",
+                FileTypes = new FilePickerFileType(
+                    new Dictionary<DevicePlatform, IEnumerable<string>>
+                    {
+                        { DevicePlatform.WinUI, new[] { ".csv" } },
+                        { DevicePlatform.Android, new[] { ".csv" } },
+                        { DevicePlatform.iOS, new[] { ".csv" } },
+                        { DevicePlatform.MacCatalyst, new[] { ".csv" } }
+                    })
+            };
+
+            var archivo = await FilePicker.Default.PickAsync(opciones);
+
+            if (archivo is null)
+            {
+                return;
+            }
+
+            if (!string.Equals(
+                    Path.GetExtension(archivo.FileName),
+                    ".csv",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await MostrarAlertaAsync("El archivo seleccionado debe tener extensión .csv.");
+                return;
+            }
+
+            var resultado = await LeerEstudiantesCsvAsync(archivo, comision);
+
+            if (resultado.Estudiantes.Count == 0)
+            {
+                MensajeValidacion = resultado.FilasOmitidas switch
+                {
+                    0 => "El archivo no contiene estudiantes para importar.",
+                    1 => "No se encontraron filas válidas. Se omitió 1 fila.",
+                    _ => $"No se encontraron filas válidas. Se omitieron {resultado.FilasOmitidas} filas."
+                };
+
+                await MostrarAlertaAsync(MensajeValidacion);
+                return;
+            }
+
+            int importados;
+
+            try
+            {
+                importados = await _databaseService.SaveEstudiantesAsync(resultado.Estudiantes);
+            }
+            catch (Exception ex)
+            {
+                MensajeValidacion = $"No se pudo guardar la importación: {ex.Message}";
+                await MostrarAlertaAsync(MensajeValidacion);
+                return;
+            }
+
+            await RecargarAsync();
+
+            var mensaje = importados == 1
+                ? $"Se importó 1 estudiante en la comisión {comision}."
+                : $"Se importaron {importados} estudiantes en la comisión {comision}.";
+
+            if (resultado.FilasOmitidas == 1)
+            {
+                mensaje += "\nSe omitió 1 fila por datos inválidos o legajos repetidos.";
+            }
+            else if (resultado.FilasOmitidas > 1)
+            {
+                mensaje += $"\nSe omitieron {resultado.FilasOmitidas} filas por datos inválidos o legajos repetidos.";
+            }
+
+            MensajeValidacion = string.Empty;
+            await MostrarAlertaAsync(mensaje);
+        }
+        catch (Exception ex)
+        {
+            MensajeValidacion = $"No se pudo importar el archivo: {ex.Message}";
+            await MostrarAlertaAsync(MensajeValidacion);
+        }
+        finally
+        {
+            _importandoCsv = false;
+        }
+    }
+
+    private async Task<ResultadoImportacionCsv> LeerEstudiantesCsvAsync(
+        FileResult archivo,
+        string comision)
+    {
+        List<string> lineas;
+
+        try
+        {
+            lineas = await LeerLineasAsync(
+                archivo,
+                new UTF8Encoding(
+                    encoderShouldEmitUTF8Identifier: false,
+                    throwOnInvalidBytes: true));
+        }
+        catch (DecoderFallbackException)
+        {
+            lineas = await LeerLineasAsync(archivo, Encoding.Latin1);
+        }
+
+        var resultado = new ResultadoImportacionCsv();
+        var legajosExistentes = Estudiantes
+            .Select(estudiante => estudiante.Legajo)
+            .ToHashSet();
+        var legajosArchivo = new HashSet<int>();
+        var primeraLinea = true;
+
+        foreach (var linea in lineas)
+        {
+            if (string.IsNullOrWhiteSpace(linea))
+            {
+                continue;
+            }
+
+            var delimitador = DetectarDelimitador(linea);
+            var campos = ParsearLineaCsv(linea, delimitador);
+
+            if (primeraLinea)
+            {
+                primeraLinea = false;
+
+                if (EsCabecera(campos))
+                {
+                    continue;
+                }
+            }
+
+            if (campos.Count < 3)
+            {
+                resultado.FilasOmitidas++;
+                continue;
+            }
+
+            if (!int.TryParse(campos[0].Trim(), out var legajo) || legajo <= 0)
+            {
+                resultado.FilasOmitidas++;
+                continue;
+            }
+
+            var apellido = campos[1].Trim();
+            var nombre = campos[2].Trim();
+
+            if (string.IsNullOrWhiteSpace(apellido) ||
+                string.IsNullOrWhiteSpace(nombre))
+            {
+                resultado.FilasOmitidas++;
+                continue;
+            }
+
+            if (legajosExistentes.Contains(legajo) ||
+                !legajosArchivo.Add(legajo))
+            {
+                resultado.FilasOmitidas++;
+                continue;
+            }
+
+            resultado.Estudiantes.Add(new Estudiante
+            {
+                Legajo = legajo,
+                Apellido = apellido,
+                Nombre = nombre,
+                Comision = comision
+            });
+        }
+
+        return resultado;
+    }
+
+    private static async Task<List<string>> LeerLineasAsync(
+        FileResult archivo,
+        Encoding codificacion)
+    {
+        var lineas = new List<string>();
+
+        using var stream = await archivo.OpenReadAsync();
+        using var lector = new StreamReader(
+            stream,
+            codificacion,
+            detectEncodingFromByteOrderMarks: true);
+
+        string? linea;
+
+        while ((linea = await lector.ReadLineAsync()) is not null)
+        {
+            lineas.Add(linea);
+        }
+
+        return lineas;
+    }
+
+    private static bool EsCabecera(IReadOnlyList<string> campos)
+    {
+        if (campos.Count == 0)
+        {
+            return false;
+        }
+
+        var primerCampo = campos[0]
+            .Trim()
+            .Replace(" ", string.Empty)
+            .Replace("_", string.Empty);
+
+        return primerCampo.Contains("legajo", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static char DetectarDelimitador(string linea)
+    {
+        var puntoYComa = 0;
+        var coma = 0;
+        var entreComillas = false;
+
+        for (var i = 0; i < linea.Length; i++)
+        {
+            var caracter = linea[i];
+
+            if (caracter == '"')
+            {
+                if (entreComillas &&
+                    i + 1 < linea.Length &&
+                    linea[i + 1] == '"')
+                {
+                    i++;
+                }
+                else
+                {
+                    entreComillas = !entreComillas;
+                }
+            }
+            else if (!entreComillas)
+            {
+                if (caracter == ';')
+                {
+                    puntoYComa++;
+                }
+                else if (caracter == ',')
+                {
+                    coma++;
+                }
+            }
+        }
+
+        return puntoYComa >= coma ? ';' : ',';
+    }
+
+    private static List<string> ParsearLineaCsv(string linea, char delimitador)
+    {
+        var campos = new List<string>();
+        var campo = new StringBuilder();
+        var entreComillas = false;
+
+        for (var i = 0; i < linea.Length; i++)
+        {
+            var caracter = linea[i];
+
+            if (caracter == '"')
+            {
+                if (entreComillas &&
+                    i + 1 < linea.Length &&
+                    linea[i + 1] == '"')
+                {
+                    campo.Append('"');
+                    i++;
+                }
+                else
+                {
+                    entreComillas = !entreComillas;
+                }
+            }
+            else if (caracter == delimitador && !entreComillas)
+            {
+                campos.Add(campo.ToString().Trim());
+                campo.Clear();
+            }
+            else
+            {
+                campo.Append(caracter);
+            }
+        }
+
+        campos.Add(campo.ToString().Trim());
+
+        return campos;
+    }
+
+    private sealed class ResultadoImportacionCsv
+    {
+        public List<Estudiante> Estudiantes { get; } = new();
+
+        public int FilasOmitidas { get; set; }
     }
 
     private async Task CargarEstudiantesAsync()
