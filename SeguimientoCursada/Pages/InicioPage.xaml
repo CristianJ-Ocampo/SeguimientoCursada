@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.InicioPage"
+             x:DataType="viewModels:InicioViewModel"
+             Title="Inicio">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="16">
+            <Label Text="Resumen general" Style="{StaticResource Headline}" />
+
+            <VerticalStackLayout IsVisible="{Binding MostrarEstadoVacio}" Spacing="12">
+                <Label Text="Todavía no hay datos suficientes. Registre estudiantes para comenzar con el seguimiento académico."
+                       HorizontalTextAlignment="Center" />
+                <Button Text="Registrar primer alumno"
+                        Command="{Binding RegistrarPrimerAlumnoCommand}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout IsVisible="{Binding MostrarMetricas}" Spacing="12">
+                <Label Text="Distribución del riesgo" Style="{StaticResource SubHeadline}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <Border Padding="12" Stroke="LightGray">
+                        <VerticalStackLayout>
+                            <Label Text="Óptimos" FontAttributes="Bold" />
+                            <Label Text="{Binding EstudiantesOptimos}" FontSize="24" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Column="1" Padding="12" Stroke="LightGray">
+                        <VerticalStackLayout>
+                            <Label Text="En riesgo" FontAttributes="Bold" />
+                            <Label Text="{Binding EstudiantesEnRiesgo}" FontSize="24" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Column="2" Padding="12" Stroke="LightGray">
+                        <VerticalStackLayout>
+                            <Label Text="Críticos" FontAttributes="Bold" />
+                            <Label Text="{Binding EstudiantesCriticos}" FontSize="24" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <Border Padding="12" Stroke="LightGray">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Indicadores generales" FontAttributes="Bold" />
+                        <Label Text="{Binding PromedioAsistencia, StringFormat='Asistencia promedio: {0:0.##}%'}" />
+                        <Label Text="{Binding PromedioEntregas, StringFormat='Entrega de TPs promedio: {0:0.##}%'}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12" Stroke="LightGray">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Intervenciones" FontAttributes="Bold" />
+                        <Label Text="{Binding Contactados, StringFormat='Alumnos contactados: {0}'}" />
+                        <Label Text="{Binding PendientesContacto, StringFormat='Contactos pendientes: {0}'}" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+
+            <ActivityIndicator IsRunning="{Binding EstaCargando}"
+                               IsVisible="{Binding EstaCargando}" />
+            <Label Text="{Binding Mensaje}" TextColor="Red" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
