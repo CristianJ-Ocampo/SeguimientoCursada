@@ -17,7 +17,7 @@
                     StrokeThickness="1"
                     Padding="16">
                 <Grid ColumnDefinitions="Auto,*"
-                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="12"
                       RowSpacing="8">
                     <Label Grid.Row="0" Text="Apellido:" FontAttributes="Bold" />
@@ -35,6 +35,8 @@
                            TextColor="{Binding ColorNivelRiesgo}" />
                     <Label Grid.Row="5" Text="Detalle:" FontAttributes="Bold" />
                     <Label Grid.Row="5" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
+                    <Label Grid.Row="6" Text="Estado:" FontAttributes="Bold" />
+                    <Label Grid.Row="6" Grid.Column="1" Text="{Binding EstadoSeguimiento}" />
                 </Grid>
             </Border>
 
@@ -125,6 +127,50 @@
                                           CheckedChanged="OnEntregaChanged" />
                             </HorizontalStackLayout>
                         </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Seguimiento de contacto"
+                    IsVisible="{Binding PuedeRegistrarContacto}"
+                   Style="{StaticResource SubHeadline}"
+                   SemanticProperties.HeadingLevel="Level2" />
+
+            <Border Stroke="LightGray" StrokeThickness="1" Padding="12"
+                    IsVisible="{Binding PuedeRegistrarContacto}">
+                <VerticalStackLayout Spacing="8">
+                    <DatePicker Date="{Binding FechaContacto}" />
+                    <TimePicker Time="{Binding HoraContacto}" />
+                    <Picker Title="Medio de contacto"
+                            ItemsSource="{Binding MediosContacto}"
+                            SelectedItem="{Binding MedioContacto}" />
+                    <Picker Title="Motivo de contacto"
+                            ItemsSource="{Binding MotivosContacto}"
+                            SelectedItem="{Binding MotivoContacto}" />
+                    <Editor Placeholder="Resultado u observaciones"
+                            Text="{Binding ResultadoContacto}"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="80" />
+                    <Button Text="Guardar Intervención"
+                            Command="{Binding RegistrarContactoCommand}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <CollectionView ItemsSource="{Binding Contactos}"
+                            IsVisible="{Binding PuedeRegistrarContacto}"
+                            HeightRequest="260"
+                            EmptyView="No hay contactos registrados para este estudiante.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:ContactoHistorialViewModel">
+                        <Border Stroke="LightGray" StrokeThickness="1" Padding="10" Margin="0,0,0,6">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Text="{Binding FechaHora, StringFormat='{0:dd/MM/yyyy HH:mm}'}"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding Medio, StringFormat='Medio: {0}'}" />
+                                <Label Text="{Binding Motivo, StringFormat='Motivo: {0}'}" />
+                                <Label Text="{Binding Resultado}" />
+                            </VerticalStackLayout>
+                        </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>

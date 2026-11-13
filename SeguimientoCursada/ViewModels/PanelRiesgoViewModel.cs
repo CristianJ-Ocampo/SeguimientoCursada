@@ -86,6 +86,7 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
         var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
         var asistencias = await _databaseService.GetAsistenciasAsync();
         var entregas = await _databaseService.GetEntregasAsync();
+        var contactos = await _databaseService.GetUltimosContactosAsync();
         Estudiantes.Clear();
 
         foreach (var estudiante in EstudiantesViewModel.TodosLosEstudiantes
@@ -96,7 +97,8 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
                           totalClases,
                           trabajos,
                           entregas,
-                          _configuracionRiesgoService))
+                           _configuracionRiesgoService,
+                           contactos.FirstOrDefault(contacto => contacto.LegajoEstudiante == estudiante.Legajo)))
                      .OrderByDescending(estudiante => estudiante.PrioridadRiesgo)
                      .ThenByDescending(estudiante => estudiante.Inasistencias)
                      .ThenBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
@@ -134,7 +136,8 @@ public class EstudianteRiesgoViewModel
         int totalClases,
         IEnumerable<TrabajoPractico> trabajos,
         IEnumerable<EntregaTrabajo> entregas,
-        ConfiguracionRiesgoService configuracion)
+        ConfiguracionRiesgoService configuracion,
+        ContactoEstudiante? ultimoContacto = null)
     {
         var resultado = RiesgoEstudianteService.Calcular(
             estudiante,
@@ -151,6 +154,9 @@ public class EstudianteRiesgoViewModel
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
         PorcentajeEntregas = resultado.PorcentajeEntregas;
         NivelRiesgo = resultado.Nivel.ToString();
+        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ToString();
+        PuedeMostrarSeguimiento = resultado.RequiereContacto();
+        UltimoContacto = PuedeMostrarSeguimiento ? ultimoContacto : null;
         MotivoRiesgo = resultado.Motivo;
         PrioridadRiesgo = resultado.Nivel switch
         {
@@ -168,5 +174,13 @@ public class EstudianteRiesgoViewModel
     public decimal PorcentajeEntregas { get; }
     public string NivelRiesgo { get; }
     public string MotivoRiesgo { get; }
+    public string EstadoSeguimiento { get; }
+    public bool PuedeMostrarSeguimiento { get; }
+    public ContactoEstudiante? UltimoContacto { get; }
+    public string TextoSeguimiento => !PuedeMostrarSeguimiento
+        ? string.Empty
+        : UltimoContacto is null
+            ? "Pendiente de contacto"
+            : $"Contactado: {UltimoContacto.FechaHora:dd/MM/yyyy HH:mm}";
     public int PrioridadRiesgo { get; }
 }

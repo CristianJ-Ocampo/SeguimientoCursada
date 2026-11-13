@@ -9,6 +9,14 @@ public enum NivelRiesgo
     Alto
 }
 
+public enum EstadoSeguimiento
+{
+    Optimo,
+    Regular,
+    EnRiesgo,
+    Critico
+}
+
 public sealed record ResultadoRiesgo(
     NivelRiesgo Nivel,
     int Inasistencias,
@@ -19,6 +27,23 @@ public sealed record ResultadoRiesgo(
     int TrabajosEntregados = 0,
     int TotalTrabajosObligatorios = 0,
     decimal PorcentajeEntregas = 0);
+
+public static class ResultadoRiesgoExtensions
+{
+    public static EstadoSeguimiento ObtenerEstadoSeguimiento(this ResultadoRiesgo resultado)
+    {
+        return resultado.Nivel switch
+        {
+            NivelRiesgo.Bajo => EstadoSeguimiento.Optimo,
+            NivelRiesgo.Medio => EstadoSeguimiento.EnRiesgo,
+            NivelRiesgo.Alto => EstadoSeguimiento.Critico,
+            _ => EstadoSeguimiento.Optimo
+        };
+    }
+
+    public static bool RequiereContacto(this ResultadoRiesgo resultado) =>
+        resultado.ObtenerEstadoSeguimiento() is EstadoSeguimiento.EnRiesgo or EstadoSeguimiento.Critico;
+}
 
 public static class RiesgoEstudianteService
 {

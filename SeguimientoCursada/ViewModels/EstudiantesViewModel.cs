@@ -17,6 +17,11 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     private string _nombre = string.Empty;
     private string _comisionSeleccionada = "1° A";
     private string _mensajeValidacion = string.Empty;
+    private readonly ConfiguracionRiesgoService _configuracionRiesgoService;
+    private int _totalClases;
+    private IReadOnlyList<TrabajoPractico> _trabajos = Array.Empty<TrabajoPractico>();
+    private IReadOnlyList<Asistencia> _asistencias = Array.Empty<Asistencia>();
+    private IReadOnlyList<EntregaTrabajo> _entregas = Array.Empty<EntregaTrabajo>();
 
     public EstudiantesViewModel()
         : this(ObtenerDatabaseService())
@@ -26,6 +31,9 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     public EstudiantesViewModel(DatabaseService databaseService)
     {
         _databaseService = databaseService;
+        _configuracionRiesgoService = Application.Current?.Handler?.MauiContext?.Services
+            .GetRequiredService<ConfiguracionRiesgoService>()
+            ?? new ConfiguracionRiesgoService();
         AgregarEstudianteCommand = new Command(async () => await AgregarEstudianteAsync());
         AbrirDetalleCommand = new Command(async parameter =>
         {
@@ -42,7 +50,9 @@ public class EstudiantesViewModel : INotifyPropertyChanged
 
     public ObservableCollection<Estudiante> Estudiantes => TodosLosEstudiantes;
 
-    public ObservableCollection<Estudiante> EstudiantesFiltrados { get; } = new();
+    public ObservableCollection<EstudianteListadoViewModel> EstudiantesFiltrados { get; } = new();
+
+    private readonly Dictionary<int, ContactoEstudiante> _ultimosContactos = new();
 
     public IReadOnlyList<string> Comisiones { get; } = new[] { "1° A", "1° B" };
 
@@ -165,6 +175,17 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         try
         {
             var estudiantes = await _databaseService.GetEstudiantesAsync();
+            var contactos = await _databaseService.GetUltimosContactosAsync();
+            var totalClases = await _databaseService.GetTotalClasesAsync();
+            var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+            var asistencias = await _databaseService.GetAsistenciasAsync();
+            var entregas = await _databaseService.GetEntregasAsync();
+
+            _ultimosContactos.Clear();
+            foreach (var contacto in contactos)
+            {
+                _ultimosContactos[contacto.LegajoEstudiante] = contacto;
+            }
 
             Estudiantes.Clear();
             foreach (var estudiante in estudiantes)
@@ -172,12 +193,22 @@ public class EstudiantesViewModel : INotifyPropertyChanged
                 Estudiantes.Add(estudiante);
             }
 
+            _totalClases = totalClases;
+            _trabajos = trabajos;
+            _asistencias = asistencias;
+            _entregas = entregas;
+
             ActualizarNominaFiltrada();
         }
         catch (Exception ex)
         {
             MensajeValidacion = $"No se pudieron cargar los estudiantes: {ex.Message}";
         }
+    }
+
+    public async Task RecargarAsync()
+    {
+        await CargarEstudiantesAsync();
     }
 
     private static DatabaseService ObtenerDatabaseService()
@@ -216,7 +247,15 @@ public class EstudiantesViewModel : INotifyPropertyChanged
                      .OrderBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
                      .ThenBy(estudiante => estudiante.Nombre, StringComparer.CurrentCultureIgnoreCase))
         {
-            EstudiantesFiltrados.Add(estudiante);
+            _ultimosContactos.TryGetValue(estudiante.Legajo, out var contacto);
+            var resultado = RiesgoEstudianteService.Calcular(
+                estudiante,
+                _asistencias,
+                _totalClases,
+                _trabajos,
+                _entregas,
+                _configuracionRiesgoService);
+            EstudiantesFiltrados.Add(new EstudianteListadoViewModel(estudiante, contacto, resultado));
         }
 
         OnPropertyChanged(nameof(CantidadEstudiantes));

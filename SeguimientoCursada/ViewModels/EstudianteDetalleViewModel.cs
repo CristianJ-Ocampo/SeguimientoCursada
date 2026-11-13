@@ -18,6 +18,11 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     private string _mensaje = string.Empty;
     private bool _estaCargando;
     private int _legajo;
+    private DateTime _fechaContacto = DateTime.Today;
+    private TimeSpan _horaContacto = DateTime.Now.TimeOfDay;
+    private string _medioContacto = ContactoEstudiante.MediosDisponibles[0];
+    private string _motivoContacto = ContactoEstudiante.MotivosDisponibles[0];
+    private string _resultadoContacto = string.Empty;
 
     public EstudianteDetalleViewModel(
         DatabaseService databaseService,
@@ -30,6 +35,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             async asistencia => await ActualizarAsistenciaAsync(asistencia));
         ActualizarEntregaCommand = new Command<EntregaTrabajoViewModel>(
             async entrega => await ActualizarEntregaAsync(entrega));
+        RegistrarContactoCommand = new Command(async () => await RegistrarContactoAsync());
     }
 
     public Estudiante? Estudiante { get; private set; }
@@ -37,6 +43,42 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public ObservableCollection<AsistenciaHistorialViewModel> Historial { get; } = new();
 
     public ObservableCollection<EntregaTrabajoViewModel> TrabajosPracticos { get; } = new();
+
+    public ObservableCollection<ContactoHistorialViewModel> Contactos { get; } = new();
+
+    public IReadOnlyList<string> MediosContacto => ContactoEstudiante.MediosDisponibles;
+
+    public IReadOnlyList<string> MotivosContacto => ContactoEstudiante.MotivosDisponibles;
+
+    public DateTime FechaContacto
+    {
+        get => _fechaContacto;
+        set => SetProperty(ref _fechaContacto, value);
+    }
+
+    public string MotivoContacto
+    {
+        get => _motivoContacto;
+        set => SetProperty(ref _motivoContacto, value ?? string.Empty);
+    }
+
+    public TimeSpan HoraContacto
+    {
+        get => _horaContacto;
+        set => SetProperty(ref _horaContacto, value);
+    }
+
+    public string MedioContacto
+    {
+        get => _medioContacto;
+        set => SetProperty(ref _medioContacto, value ?? string.Empty);
+    }
+
+    public string ResultadoContacto
+    {
+        get => _resultadoContacto;
+        set => SetProperty(ref _resultadoContacto, value ?? string.Empty);
+    }
 
     public string Legajo
     {
@@ -83,6 +125,10 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public string NivelRiesgo { get; private set; } = "Sin datos";
 
+    public string EstadoSeguimiento { get; private set; } = "Sin datos";
+
+    public bool PuedeRegistrarContacto { get; private set; }
+
     public Color ColorNivelRiesgo => NivelRiesgo switch
     {
         "Bajo" => Colors.Green,
@@ -118,10 +164,59 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public Command<EntregaTrabajoViewModel> ActualizarEntregaCommand { get; }
 
+    public Command RegistrarContactoCommand { get; }
+
     public bool EstaCargando
     {
         get => _estaCargando;
         private set => SetProperty(ref _estaCargando, value);
+    }
+
+    private async Task RegistrarContactoAsync()
+    {
+        if (!PuedeRegistrarContacto)
+        {
+            Mensaje = "Este estudiante no requiere una intervención de seguimiento.";
+            return;
+        }
+
+        if (_legajo <= 0)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(MedioContacto) ||
+            string.IsNullOrWhiteSpace(MotivoContacto) ||
+            string.IsNullOrWhiteSpace(ResultadoContacto))
+        {
+            Mensaje = "Seleccioná un medio, un motivo e ingresá el resultado u observación.";
+            return;
+        }
+
+        try
+        {
+            await _databaseService.SaveContactoAsync(new ContactoEstudiante
+            {
+                LegajoEstudiante = _legajo,
+                FechaHora = FechaContacto.Date.Add(HoraContacto),
+                Medio = MedioContacto,
+                Motivo = MotivoContacto,
+                Resultado = ResultadoContacto
+            });
+
+            await CargarContactosAsync(_legajo);
+            FechaContacto = DateTime.Today;
+            HoraContacto = DateTime.Now.TimeOfDay;
+            MedioContacto = ContactoEstudiante.MediosDisponibles[0];
+            MotivoContacto = ContactoEstudiante.MotivosDisponibles[0];
+            ResultadoContacto = string.Empty;
+            Mensaje = "Contacto registrado correctamente.";
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudo registrar el contacto: {ex.Message}";
+        }
     }
 
     private async Task ActualizarEntregaAsync(EntregaTrabajoViewModel? trabajo)
@@ -206,11 +301,14 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             var estudiante = await _databaseService.GetEstudiantePorLegajoAsync(_legajo);
 
             Historial.Clear();
+            Contactos.Clear();
 
             if (estudiante is null)
             {
                 Estudiante = null;
                 NivelRiesgo = "Sin datos";
+                EstadoSeguimiento = "Sin datos";
+                PuedeRegistrarContacto = false;
                 MotivoRiesgo = string.Empty;
                 Mensaje = $"No se encontró el estudiante con legajo {legajo}.";
                 NotificarDatos();
@@ -237,6 +335,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             }
 
             await RecalcularRiesgoAsync();
+            await CargarContactosAsync(_legajo);
             NotificarDatos();
         }
         catch (Exception ex)
@@ -246,6 +345,22 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         finally
         {
             EstaCargando = false;
+        }
+    }
+
+    private async Task CargarContactosAsync(int legajo)
+    {
+        Contactos.Clear();
+        if (!PuedeRegistrarContacto)
+        {
+            return;
+        }
+
+        var contactos = await _databaseService.GetContactosPorLegajoAsync(legajo);
+
+        foreach (var contacto in contactos)
+        {
+            Contactos.Add(new ContactoHistorialViewModel(contacto));
         }
     }
 
@@ -259,6 +374,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalInasistencias));
         OnPropertyChanged(nameof(TotalClases));
         OnPropertyChanged(nameof(NivelRiesgo));
+        OnPropertyChanged(nameof(EstadoSeguimiento));
+        OnPropertyChanged(nameof(PuedeRegistrarContacto));
         OnPropertyChanged(nameof(ColorNivelRiesgo));
         OnPropertyChanged(nameof(MotivoRiesgo));
         OnPropertyChanged(nameof(PorcentajeAsistencia));
@@ -268,6 +385,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TrabajosEntregados));
         OnPropertyChanged(nameof(TotalTrabajosObligatorios));
         OnPropertyChanged(nameof(TrabajosPracticos));
+        OnPropertyChanged(nameof(Contactos));
     }
 
     private async Task RecalcularRiesgoAsync()
@@ -290,6 +408,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             _configuracionRiesgoService);
 
         NivelRiesgo = resultado.Nivel.ToString();
+        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ToString();
+        PuedeRegistrarContacto = resultado.RequiereContacto();
         MotivoRiesgo = resultado.Motivo;
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
         ClasesAsistidas = resultado.ClasesAsistidas;
@@ -318,46 +438,3 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     }
 }
 
-public sealed class AsistenciaHistorialViewModel
-{
-    private string _estadoSeleccionado;
-
-    public AsistenciaHistorialViewModel(Asistencia asistencia)
-    {
-        Asistencia = asistencia;
-        Fecha = asistencia.Fecha;
-        _estadoSeleccionado = EstadoAsistencia.Normalizar(asistencia);
-    }
-
-    public Asistencia Asistencia { get; }
-
-    public DateTime Fecha { get; }
-
-    public bool Presente => EstadoSeleccionado == EstadoAsistencia.Presente;
-
-    public string Estado => EstadoSeleccionado;
-
-    public string EstadoSeleccionado
-    {
-        get => _estadoSeleccionado;
-        set
-        {
-            if (_estadoSeleccionado == value)
-            {
-                return;
-            }
-
-            _estadoSeleccionado = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(Estado));
-            OnPropertyChanged(nameof(Presente));
-        }
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}

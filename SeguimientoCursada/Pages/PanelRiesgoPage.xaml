@@ -54,6 +54,11 @@
                                 <Label Text="{Binding Inasistencias, StringFormat='Faltas: {0}'}"
                                        FontSize="12"
                                        HorizontalTextAlignment="End" />
+                                <Label Text="{Binding TextoSeguimiento}"
+                                       IsVisible="{Binding PuedeMostrarSeguimiento}"
+                                       FontSize="12"
+                                       TextColor="DarkGreen"
+                                       HorizontalTextAlignment="End" />
                             </VerticalStackLayout>
                             <Button Grid.Column="3"
                                     Text="Ver ficha"

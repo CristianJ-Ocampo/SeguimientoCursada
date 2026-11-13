@@ -39,7 +39,9 @@ public sealed class DatabaseService
             await _database.CreateTableAsync<FechaClase>();
             await _database.CreateTableAsync<TrabajoPractico>();
             await _database.CreateTableAsync<EntregaTrabajo>();
+            await _database.CreateTableAsync<ContactoEstudiante>();
             await MigrarEstadosAsistenciaAsync();
+            await MigrarContactosAsync();
             _initialized = true;
         }
         finally
@@ -296,6 +298,63 @@ public sealed class DatabaseService
         return await _database.DeleteAsync(entrega);
     }
 
+    public async Task<List<ContactoEstudiante>> GetContactosPorLegajoAsync(int legajo)
+    {
+        await InitializeAsync();
+        return await _database.Table<ContactoEstudiante>()
+            .Where(contacto => contacto.LegajoEstudiante == legajo)
+            .OrderByDescending(contacto => contacto.FechaHora)
+            .ToListAsync();
+    }
+
+    public async Task<List<ContactoEstudiante>> GetUltimosContactosAsync()
+    {
+        await InitializeAsync();
+        var contactos = await _database.Table<ContactoEstudiante>().ToListAsync();
+
+        return contactos
+            .GroupBy(contacto => contacto.LegajoEstudiante)
+            .Select(grupo => grupo.OrderByDescending(contacto => contacto.FechaHora).First())
+            .ToList();
+    }
+
+    public async Task<int> SaveContactoAsync(ContactoEstudiante contacto)
+    {
+        ArgumentNullException.ThrowIfNull(contacto);
+
+        if (contacto.LegajoEstudiante <= 0)
+        {
+            throw new ArgumentException("El contacto debe tener un estudiante válido.", nameof(contacto));
+        }
+
+        if (string.IsNullOrWhiteSpace(contacto.Medio) ||
+            !ContactoEstudiante.MediosDisponibles.Contains(contacto.Medio, StringComparer.Ordinal))
+        {
+            throw new ArgumentException("El medio de contacto no es válido.", nameof(contacto));
+        }
+
+        if (string.IsNullOrWhiteSpace(contacto.Motivo) ||
+            !ContactoEstudiante.MotivosDisponibles.Contains(contacto.Motivo, StringComparer.Ordinal))
+        {
+            throw new ArgumentException("El motivo de contacto no es válido.", nameof(contacto));
+        }
+
+        if (string.IsNullOrWhiteSpace(contacto.Resultado))
+        {
+            throw new ArgumentException("El resultado u observación del contacto es obligatorio.", nameof(contacto));
+        }
+
+        await InitializeAsync();
+        contacto.Medio = contacto.Medio.Trim();
+        contacto.Motivo = contacto.Motivo.Trim();
+        contacto.Resultado = contacto.Resultado.Trim();
+        contacto.FechaHora = contacto.FechaHora == default ? DateTime.Now : contacto.FechaHora;
+
+        return contacto.Id > 0
+            ? await _database.UpdateAsync(contacto)
+            : await _database.InsertAsync(contacto);
+    }
+
     private async Task MigrarEstadosAsistenciaAsync()
     {
         var columnaExiste = await _database.ExecuteScalarAsync<int>(
@@ -319,6 +378,18 @@ public sealed class DatabaseService
                 EstadoAsistencia.Aplicar(asistencia, estadoNormalizado);
                 await _database.UpdateAsync(asistencia);
             }
+        }
+    }
+
+    private async Task MigrarContactosAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('ContactoEstudiante') WHERE name = 'Motivo'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE ContactoEstudiante ADD COLUMN Motivo TEXT NOT NULL DEFAULT ''");
         }
     }
 }
