@@ -9,8 +9,11 @@ namespace SeguimientoCursada.ViewModels;
 
 public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
 {
+    private static readonly IReadOnlyList<string> ComisionesDisponibles =
+        new[] { "1° A", "1° B" };
     private readonly DatabaseService _databaseService;
     private TrabajoPractico? _trabajoSeleccionado;
+    private string _comisionSeleccionada = "1° A";
     private string _titulo = string.Empty;
     private string _descripcion = string.Empty;
     private bool _obligatorio = true;
@@ -41,8 +44,24 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
                 Titulo = value.Titulo;
                 Descripcion = value.Descripcion;
                 Obligatorio = value.Obligatorio;
+                ComisionSeleccionada = string.IsNullOrWhiteSpace(value.Comision)
+                    ? "1° A"
+                    : value.Comision;
+
+                if (string.IsNullOrWhiteSpace(value.Comision))
+                {
+                    Mensaje = "Este trabajo no tenía comisión asignada. Elegí una comisión y guardá para actualizarlo.";
+                }
             }
         }
+    }
+
+    public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
+
+    public string ComisionSeleccionada
+    {
+        get => _comisionSeleccionada;
+        set => SetProperty(ref _comisionSeleccionada, value);
     }
 
     public string Titulo
@@ -107,6 +126,7 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
             trabajo.Descripcion = Descripcion;
             trabajo.Obligatorio = Obligatorio;
             trabajo.Activo = true;
+            trabajo.Comision = ComisionSeleccionada.Trim();
 
             await _databaseService.SaveTrabajoPracticoAsync(trabajo);
             await CargarAsync();
@@ -149,6 +169,7 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
         Titulo = string.Empty;
         Descripcion = string.Empty;
         Obligatorio = true;
+        ComisionSeleccionada = "1° A";
     }
 
     private static DatabaseService ObtenerDatabaseService()

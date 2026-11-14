@@ -9,7 +9,9 @@ namespace SeguimientoCursada.ViewModels;
 
 public class CalendarioClasesViewModel : INotifyPropertyChanged
 {
+    private static readonly IReadOnlyList<string> ComisionesDisponibles = new[] { "1° A", "1° B" };
     private readonly DatabaseService _databaseService;
+    private string _comisionSeleccionada = "1° A";
     private DateTime _fechaSeleccionada = DateTime.Today;
     private string _descripcion = string.Empty;
     private bool _esDiaClase = true;
@@ -30,6 +32,20 @@ public class CalendarioClasesViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<FechaClase> Fechas { get; } = new();
+
+    public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
+
+    public string ComisionSeleccionada
+    {
+        get => _comisionSeleccionada;
+        set
+        {
+            if (SetProperty(ref _comisionSeleccionada, value))
+            {
+                _ = CargarDatosAsync();
+            }
+        }
+    }
 
     public DateTime FechaSeleccionada
     {
@@ -74,11 +90,13 @@ public class CalendarioClasesViewModel : INotifyPropertyChanged
     {
         try
         {
-            var fechaClase = await _databaseService.GetFechaClaseAsync(FechaSeleccionada);
+            var comision = ComisionSeleccionada.Trim();
+            var fechaClase = await _databaseService.GetFechaClaseAsync(FechaSeleccionada, comision);
             var registro = fechaClase ?? new FechaClase();
             registro.Fecha = FechaSeleccionada.Date;
             registro.Descripcion = Descripcion.Trim();
             registro.EsDiaClase = EsDiaClase;
+            registro.Comision = comision;
 
             await _databaseService.SaveFechaClaseAsync(registro);
             await CargarDatosAsync();
@@ -102,9 +120,28 @@ public class CalendarioClasesViewModel : INotifyPropertyChanged
 
         try
         {
-            await _databaseService.DeleteFechaClaseAsync(fechaClase);
+            var asistenciasAfectadas = await _databaseService
+                .GetAsistenciasAfectadasPorEliminarFechaAsync(fechaClase);
+
+            if (asistenciasAfectadas.Count > 0)
+            {
+                var mensaje = ConstruirMensajeEliminacion(fechaClase, asistenciasAfectadas);
+                var confirmado = await MostrarConfirmacionEliminacionAsync(mensaje);
+
+                if (!confirmado)
+                {
+                    Mensaje = "Eliminación cancelada.";
+                    return;
+                }
+            }
+
+            var asistenciasEliminadas = await _databaseService
+                .DeleteFechaClaseConAsistenciasAsync(fechaClase);
+
             await CargarDatosAsync();
-            Mensaje = "Fecha eliminada correctamente.";
+            Mensaje = asistenciasEliminadas > 0
+                ? $"Fecha eliminada junto con {asistenciasEliminadas} registro{(asistenciasEliminadas == 1 ? string.Empty : "s")} de asistencia."
+                : "Fecha eliminada correctamente.";
         }
         catch (Exception ex)
         {
@@ -112,11 +149,64 @@ public class CalendarioClasesViewModel : INotifyPropertyChanged
         }
     }
 
+    private static string ConstruirMensajeEliminacion(
+        FechaClase fechaClase,
+        IReadOnlyList<Asistencia> asistencias)
+    {
+        var presentes = asistencias.Count(asistencia =>
+            EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Presente);
+        var ausentes = asistencias.Count(asistencia =>
+            EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Ausente);
+        var justificados = asistencias.Count(asistencia =>
+            EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Justificado);
+
+        var detalle = new List<string>();
+
+        if (presentes > 0)
+        {
+            detalle.Add($"{presentes} presente{(presentes == 1 ? string.Empty : "s")}");
+        }
+
+        if (ausentes > 0)
+        {
+            detalle.Add($"{ausentes} ausente{(ausentes == 1 ? string.Empty : "s")}");
+        }
+
+        if (justificados > 0)
+        {
+            detalle.Add($"{justificados} justificado{(justificados == 1 ? string.Empty : "s")}");
+        }
+
+        var cantidad = asistencias.Count;
+        var textoCantidad = cantidad == 1 ? "1 registro" : $"{cantidad} registros";
+
+        return $"La fecha {fechaClase.Fecha:dd/MM/yyyy} ({fechaClase.ComisionMostrada}) tiene " +
+               $"{textoCantidad} de asistencia: {string.Join(", ", detalle)}.\n\n" +
+               "Si eliminás la clase, también se eliminarán esos registros y dejarán de verse " +
+               "en la ficha de los alumnos.";
+    }
+
+    private static async Task<bool> MostrarConfirmacionEliminacionAsync(string mensaje)
+    {
+        var pagina = Application.Current?.Windows.FirstOrDefault()?.Page;
+
+        if (pagina is null)
+        {
+            return false;
+        }
+
+        return await pagina.DisplayAlertAsync(
+            "Eliminar clase",
+            mensaje,
+            "Eliminar",
+            "Cancelar");
+    }
+
     private async Task CargarDatosAsync()
     {
         try
         {
-            var fechas = await _databaseService.GetFechasClaseAsync();
+            var fechas = await _databaseService.GetFechasClaseAsync(ComisionSeleccionada);
             Fechas.Clear();
 
             foreach (var fecha in fechas)
@@ -124,7 +214,7 @@ public class CalendarioClasesViewModel : INotifyPropertyChanged
                 Fechas.Add(fecha);
             }
 
-            TotalClases = await _databaseService.GetTotalClasesAsync();
+            TotalClases = await _databaseService.GetTotalClasesAsync(ComisionSeleccionada);
         }
         catch (Exception ex)
         {

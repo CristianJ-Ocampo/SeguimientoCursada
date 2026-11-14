@@ -13,6 +13,12 @@
                    Style="{StaticResource Headline}"
                    SemanticProperties.HeadingLevel="Level1" />
 
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Comisión" />
+                <Picker ItemsSource="{Binding Comisiones}"
+                        SelectedItem="{Binding ComisionSeleccionada}" />
+            </VerticalStackLayout>
+
             <Entry Placeholder="Título del trabajo práctico"
                    Text="{Binding Titulo}" />
             <Entry Placeholder="Descripción opcional"
@@ -52,6 +58,8 @@
                                     <Label Text="{Binding Titulo}"
                                            FontAttributes="Bold" />
                                     <Label Text="{Binding Descripcion}" />
+                                    <Label Text="{Binding ComisionMostrada}"
+                                           TextColor="DarkBlue" />
                                     <Label Text="Obligatorio"
                                            IsVisible="{Binding Obligatorio}"
                                            TextColor="DarkBlue" />

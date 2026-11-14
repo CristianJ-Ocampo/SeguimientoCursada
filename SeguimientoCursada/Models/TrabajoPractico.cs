@@ -15,6 +15,17 @@ public class TrabajoPractico
 
     public bool Activo { get; set; } = true;
 
+    /// <summary>
+    /// Comisión a la que aplica el trabajo práctico. El valor vacío solo existe por
+    /// compatibilidad histórica y se interpreta como aplicable a todas las comisiones.
+    /// </summary>
+    public string Comision { get; set; } = string.Empty;
+
     [Ignore]
     public bool EsOpcional => !Obligatorio;
+
+    [Ignore]
+    public string ComisionMostrada => string.IsNullOrWhiteSpace(Comision)
+        ? "Sin comisión"
+        : Comision;
 }

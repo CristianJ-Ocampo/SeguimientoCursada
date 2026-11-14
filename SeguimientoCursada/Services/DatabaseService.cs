@@ -42,6 +42,11 @@ public sealed class DatabaseService
             await _database.CreateTableAsync<ContactoEstudiante>();
             await MigrarEstadosAsistenciaAsync();
             await MigrarContactosAsync();
+            await MigrarComisionTrabajosPracticosAsync();
+            await MigrarComisionFechasClaseAsync();
+            await MigrarFechaIngresoEstudiantesAsync();
+            await LimpiarAsistenciasHuerfanasAsync();
+            await RepararAsistenciasFaltantesAsync();
             _initialized = true;
         }
         finally
@@ -123,6 +128,107 @@ public sealed class DatabaseService
         return asistencias;
     }
 
+    /// <summary>
+    /// Crea registros de asistencia como Ausente para clases ya dictadas en las que el
+    /// alumno no tiene registro, contemplando su fecha de ingreso. Solo considera alumnos
+    /// que ya tienen al menos un registro de asistencia, para no alterar a quienes
+    /// todavía no fueron registrados.
+    /// Devuelve las fechas que se completaron.
+    /// </summary>
+    public async Task<List<DateTime>> CompletarAsistenciasFaltantesAsync(int? legajo = null)
+    {
+        await InitializeAsync();
+        return await CompletarAsistenciasFaltantesCoreAsync(legajo);
+    }
+
+    private async Task<List<DateTime>> CompletarAsistenciasFaltantesCoreAsync(int? legajo = null)
+    {
+        var estudiantes = await _database.Table<Estudiante>().ToListAsync();
+        var fechasClase = await _database.Table<FechaClase>()
+            .Where(fecha => fecha.EsDiaClase)
+            .ToListAsync();
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+
+        var legajosConRegistros = asistencias
+            .Select(asistencia => asistencia.LegajoEstudiante)
+            .ToHashSet();
+
+        var estudiantesObjetivo = estudiantes
+            .Where(estudiante => legajo is null || estudiante.Legajo == legajo.Value)
+            .Where(estudiante => legajosConRegistros.Contains(estudiante.Legajo))
+            .ToList();
+
+        var hoy = DateTime.Today;
+        var fechasCompletadas = new List<DateTime>();
+
+        foreach (var estudiante in estudiantesObjetivo)
+        {
+            var comisionEstudiante = (estudiante.Comision ?? string.Empty).Trim();
+            var fechaIngreso = estudiante.FechaIngreso?.Date;
+
+            foreach (var fechaClase in fechasClase)
+            {
+                var fecha = fechaClase.Fecha.Date;
+
+                if (fecha > hoy)
+                {
+                    continue;
+                }
+
+                if (fechaIngreso is not null && fecha < fechaIngreso)
+                {
+                    continue;
+                }
+
+                var comisionClase = (fechaClase.Comision ?? string.Empty).Trim();
+
+                if (!string.IsNullOrEmpty(comisionClase) &&
+                    !string.Equals(comisionClase, comisionEstudiante, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var comisionRegistro = string.IsNullOrEmpty(comisionClase)
+                    ? comisionEstudiante
+                    : comisionClase;
+
+                var yaExiste = asistencias.Any(asistencia =>
+                    asistencia.LegajoEstudiante == estudiante.Legajo &&
+                    asistencia.Fecha.Date == fecha &&
+                    string.Equals(
+                        (asistencia.Comision ?? string.Empty).Trim(),
+                        comisionRegistro,
+                        StringComparison.Ordinal));
+
+                if (yaExiste)
+                {
+                    continue;
+                }
+
+                var nuevaAsistencia = new Asistencia
+                {
+                    LegajoEstudiante = estudiante.Legajo,
+                    Fecha = fecha,
+                    Presente = false,
+                    Estado = EstadoAsistencia.Ausente,
+                    Comision = comisionRegistro
+                };
+
+                await _database.InsertAsync(nuevaAsistencia);
+                asistencias.Add(nuevaAsistencia);
+
+                if (!fechasCompletadas.Contains(fecha))
+                {
+                    fechasCompletadas.Add(fecha);
+                }
+            }
+        }
+
+        return fechasCompletadas
+            .OrderBy(fecha => fecha)
+            .ToList();
+    }
+
     public async Task<int> SaveAsistenciaAsync(Asistencia asistencia)
     {
         ArgumentNullException.ThrowIfNull(asistencia);
@@ -152,12 +258,22 @@ public sealed class DatabaseService
         return await _database.DeleteAsync(asistencia);
     }
 
-    public async Task<List<FechaClase>> GetFechasClaseAsync()
+    public async Task<List<FechaClase>> GetFechasClaseAsync(string? comision = null)
     {
         await InitializeAsync();
-        return await _database.Table<FechaClase>()
+        var fechas = await _database.Table<FechaClase>()
             .OrderBy(fechaClase => fechaClase.Fecha)
             .ToListAsync();
+
+        if (comision is null)
+        {
+            return fechas;
+        }
+
+        return fechas
+            .Where(fechaClase => string.IsNullOrWhiteSpace(fechaClase.Comision) ||
+                                 string.Equals(fechaClase.Comision, comision, StringComparison.Ordinal))
+            .ToList();
     }
 
     public async Task<List<EntregaTrabajo>> GetEntregasAsync()
@@ -166,13 +282,15 @@ public sealed class DatabaseService
         return await _database.Table<EntregaTrabajo>().ToListAsync();
     }
 
-    public async Task<FechaClase?> GetFechaClaseAsync(DateTime fecha)
+    public async Task<FechaClase?> GetFechaClaseAsync(DateTime fecha, string comision)
     {
         await InitializeAsync();
         var fechaDia = fecha.Date;
+        var comisionNormalizada = comision?.Trim() ?? string.Empty;
 
         return await _database.Table<FechaClase>()
-            .FirstOrDefaultAsync(fechaClase => fechaClase.Fecha == fechaDia);
+            .FirstOrDefaultAsync(fechaClase => fechaClase.Fecha == fechaDia &&
+                                               fechaClase.Comision == comisionNormalizada);
     }
 
     public async Task<int> SaveFechaClaseAsync(FechaClase fechaClase)
@@ -181,7 +299,8 @@ public sealed class DatabaseService
         await InitializeAsync();
 
         fechaClase.Fecha = fechaClase.Fecha.Date;
-        var existente = await GetFechaClaseAsync(fechaClase.Fecha);
+        fechaClase.Comision = fechaClase.Comision?.Trim() ?? string.Empty;
+        var existente = await GetFechaClaseAsync(fechaClase.Fecha, fechaClase.Comision);
 
         if (existente is not null && existente.Id != fechaClase.Id)
         {
@@ -200,20 +319,147 @@ public sealed class DatabaseService
         return await _database.DeleteAsync(fechaClase);
     }
 
-    public async Task<int> GetTotalClasesAsync()
+    /// <summary>
+    /// Devuelve las asistencias que quedarían sin fecha de clase si se elimina la fecha indicada.
+    /// Contempla que exista otra fecha global o específica para el mismo día y comisión.
+    /// </summary>
+    public async Task<List<Asistencia>> GetAsistenciasAfectadasPorEliminarFechaAsync(FechaClase fechaClase)
     {
+        ArgumentNullException.ThrowIfNull(fechaClase);
         await InitializeAsync();
-        return await _database.Table<FechaClase>()
-            .Where(fechaClase => fechaClase.EsDiaClase)
-            .CountAsync();
+
+        var fecha = fechaClase.Fecha.Date;
+
+        var fechasDelDia = await _database.Table<FechaClase>()
+            .Where(registro => registro.Fecha == fecha)
+            .ToListAsync();
+
+        var asistenciasDelDia = await _database.Table<Asistencia>()
+            .Where(asistencia => asistencia.Fecha == fecha)
+            .ToListAsync();
+
+        var fechasRestantes = fechasDelDia
+            .Where(registro => registro.Id != fechaClase.Id)
+            .ToList();
+
+        return asistenciasDelDia
+            .Where(asistencia =>
+            {
+                var comision = (asistencia.Comision ?? string.Empty).Trim();
+
+                return FechaAplicaAComision(fechasDelDia, fecha, comision) &&
+                       !FechaAplicaAComision(fechasRestantes, fecha, comision);
+            })
+            .ToList();
     }
 
-    public async Task<List<TrabajoPractico>> GetTrabajosPracticosAsync(bool soloObligatorios = false)
+    /// <summary>
+    /// Elimina la fecha de clase junto con las asistencias que quedarían huérfanas.
+    /// Devuelve la cantidad de asistencias eliminadas.
+    /// </summary>
+    public async Task<int> DeleteFechaClaseConAsistenciasAsync(FechaClase fechaClase)
+    {
+        ArgumentNullException.ThrowIfNull(fechaClase);
+        await InitializeAsync();
+
+        var asistenciasAfectadas = await GetAsistenciasAfectadasPorEliminarFechaAsync(fechaClase);
+
+        await _database.RunInTransactionAsync(conexion =>
+        {
+            foreach (var asistencia in asistenciasAfectadas)
+            {
+                conexion.Delete(asistencia);
+            }
+
+            conexion.Delete(fechaClase);
+        });
+
+        return asistenciasAfectadas.Count;
+    }
+
+    private static bool FechaAplicaAComision(
+        IEnumerable<FechaClase> fechas,
+        DateTime fecha,
+        string comision)
+    {
+        var fechaDia = fecha.Date;
+
+        return fechas.Any(fechaClase =>
+            fechaClase.Fecha.Date == fechaDia &&
+            fechaClase.EsDiaClase &&
+            (string.IsNullOrWhiteSpace(fechaClase.Comision) ||
+             string.Equals(
+                 fechaClase.Comision.Trim(),
+                 comision,
+                 StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// Garantiza que la fecha exista en el calendario como día de cursada para la comisión.
+    /// Devuelve true si se creó o se actualizó.
+    /// </summary>
+    public async Task<bool> EnsureFechaClaseAsync(DateTime fecha, string comision)
+    {
+        await InitializeAsync();
+        var fechaDia = fecha.Date;
+        var comisionNormalizada = comision?.Trim() ?? string.Empty;
+
+        var existente = await GetFechaClaseAsync(fechaDia, comisionNormalizada);
+        if (existente is not null)
+        {
+            if (existente.EsDiaClase)
+            {
+                return false;
+            }
+
+            existente.EsDiaClase = true;
+            await _database.UpdateAsync(existente);
+            return true;
+        }
+
+        // Un día de cursada global ya cubre a esta comisión.
+        var global = await GetFechaClaseAsync(fechaDia, string.Empty);
+        if (global is not null && global.EsDiaClase)
+        {
+            return false;
+        }
+
+        await _database.InsertAsync(new FechaClase
+        {
+            Fecha = fechaDia,
+            EsDiaClase = true,
+            Comision = comisionNormalizada
+        });
+        return true;
+    }
+
+    public async Task<int> GetTotalClasesAsync(string? comision = null)
+    {
+        var fechas = await GetFechasClaseAsync(comision);
+
+        return fechas
+            .Where(fechaClase => fechaClase.EsDiaClase)
+            .Select(fechaClase => fechaClase.Fecha.Date)
+            .Distinct()
+            .Count();
+    }
+
+    public async Task<List<TrabajoPractico>> GetTrabajosPracticosAsync(
+        bool soloObligatorios = false,
+        string? comision = null)
     {
         await InitializeAsync();
         var trabajos = await _database.Table<TrabajoPractico>()
             .Where(trabajo => trabajo.Activo)
             .ToListAsync();
+
+        if (comision is not null)
+        {
+            trabajos = trabajos
+                .Where(trabajo => string.IsNullOrWhiteSpace(trabajo.Comision) ||
+                                  string.Equals(trabajo.Comision, comision, StringComparison.Ordinal))
+                .ToList();
+        }
 
         return soloObligatorios
             ? trabajos.Where(trabajo => trabajo.Obligatorio).ToList()
@@ -239,6 +485,7 @@ public sealed class DatabaseService
         await InitializeAsync();
         trabajo.Titulo = trabajo.Titulo.Trim();
         trabajo.Descripcion = trabajo.Descripcion?.Trim() ?? string.Empty;
+        trabajo.Comision = trabajo.Comision?.Trim() ?? string.Empty;
 
         return trabajo.Id > 0
             ? await _database.UpdateAsync(trabajo)
@@ -404,5 +651,207 @@ public sealed class DatabaseService
             await _database.ExecuteAsync(
                 "ALTER TABLE ContactoEstudiante ADD COLUMN Motivo TEXT NOT NULL DEFAULT ''");
         }
+    }
+
+    private async Task MigrarFechaIngresoEstudiantesAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('Estudiante') WHERE name = 'FechaIngreso'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE Estudiante ADD COLUMN FechaIngreso INTEGER");
+        }
+    }
+
+    /// <summary>
+    /// Repara los registros faltantes de alumnos ya registrados para que el historial
+    /// refleje todas las clases desde su ingreso. Se ejecuta una sola vez.
+    /// </summary>
+    private async Task RepararAsistenciasFaltantesAsync()
+    {
+        const string clave = "migracion_asistencias_faltantes_v1";
+
+        if (Preferences.Default.Get(clave, false))
+        {
+            return;
+        }
+
+        await CompletarAsistenciasFaltantesCoreAsync();
+        Preferences.Default.Set(clave, true);
+    }
+
+    private async Task MigrarComisionTrabajosPracticosAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('TrabajoPractico') WHERE name = 'Comision'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE TrabajoPractico ADD COLUMN Comision TEXT NOT NULL DEFAULT ''");
+        }
+
+        // Si la columna la agregó sqlite-net, las filas previas pueden quedar en NULL.
+        await _database.ExecuteAsync(
+            "UPDATE TrabajoPractico SET Comision = '' WHERE Comision IS NULL");
+
+        const string clave = "migracion_comision_trabajos_v1";
+
+        if (Preferences.Default.Get(clave, false))
+        {
+            return;
+        }
+
+        await InferirComisionesTrabajosAsync();
+        Preferences.Default.Set(clave, true);
+    }
+
+    private async Task InferirComisionesTrabajosAsync()
+    {
+        var trabajos = await _database.Table<TrabajoPractico>().ToListAsync();
+
+        if (trabajos.Count == 0)
+        {
+            return;
+        }
+
+        var entregas = await _database.Table<EntregaTrabajo>()
+            .Where(entrega => entrega.Entregado)
+            .ToListAsync();
+
+        if (entregas.Count == 0)
+        {
+            return;
+        }
+
+        var estudiantes = await _database.Table<Estudiante>().ToListAsync();
+        var comisionPorLegajo = estudiantes
+            .Where(estudiante => !string.IsNullOrWhiteSpace(estudiante.Comision))
+            .GroupBy(estudiante => estudiante.Legajo)
+            .ToDictionary(grupo => grupo.Key, grupo => grupo.First().Comision);
+
+        foreach (var trabajo in trabajos.Where(trabajo => string.IsNullOrWhiteSpace(trabajo.Comision)))
+        {
+            var comisiones = entregas
+                .Where(entrega => entrega.TrabajoPracticoId == trabajo.Id)
+                .Select(entrega => comisionPorLegajo.TryGetValue(entrega.LegajoEstudiante, out var comision)
+                    ? comision
+                    : null)
+                .Where(comision => !string.IsNullOrWhiteSpace(comision))
+                .Select(comision => comision!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            if (comisiones.Count != 1)
+            {
+                continue;
+            }
+
+            trabajo.Comision = comisiones[0];
+            await _database.UpdateAsync(trabajo);
+        }
+    }
+
+    private async Task MigrarComisionFechasClaseAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('FechaClase') WHERE name = 'Comision'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE FechaClase ADD COLUMN Comision TEXT NOT NULL DEFAULT ''");
+        }
+
+        await _database.ExecuteAsync(
+            "UPDATE FechaClase SET Comision = '' WHERE Comision IS NULL");
+
+        const string clave = "migracion_comision_fechas_v1";
+
+        if (Preferences.Default.Get(clave, false))
+        {
+            return;
+        }
+
+        await BackfillFechasClaseDesdeAsistenciasAsync();
+        Preferences.Default.Set(clave, true);
+    }
+
+    private async Task BackfillFechasClaseDesdeAsistenciasAsync()
+    {
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+
+        if (asistencias.Count == 0)
+        {
+            return;
+        }
+
+        var fechas = await _database.Table<FechaClase>().ToListAsync();
+
+        foreach (var grupo in asistencias.GroupBy(asistencia => new
+                 {
+                     Fecha = asistencia.Fecha.Date,
+                     Comision = (asistencia.Comision ?? string.Empty).Trim()
+                 }))
+        {
+            var fecha = grupo.Key.Fecha;
+            var comision = grupo.Key.Comision;
+
+            var yaExiste = fechas.Any(fechaClase =>
+                fechaClase.Fecha.Date == fecha &&
+                fechaClase.EsDiaClase &&
+                (string.IsNullOrWhiteSpace(fechaClase.Comision) ||
+                 string.Equals(fechaClase.Comision, comision, StringComparison.Ordinal)));
+
+            if (yaExiste)
+            {
+                continue;
+            }
+
+            var nuevaFecha = new FechaClase
+            {
+                Fecha = fecha,
+                EsDiaClase = true,
+                Descripcion = "Clase registrada por asistencia",
+                Comision = comision
+            };
+
+            await _database.InsertAsync(nuevaFecha);
+            fechas.Add(nuevaFecha);
+        }
+    }
+
+    /// <summary>
+    /// Elimina asistencias que hayan quedado sin una fecha de clase aplicable para su comisión.
+    /// Se ejecuta una sola vez para reconciliar datos de versiones anteriores.
+    /// </summary>
+    private async Task LimpiarAsistenciasHuerfanasAsync()
+    {
+        const string clave = "migracion_limpieza_asistencias_huerfanas_v2";
+
+        if (Preferences.Default.Get(clave, false))
+        {
+            return;
+        }
+
+        var fechas = await _database.Table<FechaClase>()
+            .Where(fechaClase => fechaClase.EsDiaClase)
+            .ToListAsync();
+
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+
+        foreach (var asistencia in asistencias)
+        {
+            var comision = (asistencia.Comision ?? string.Empty).Trim();
+
+            if (!FechaAplicaAComision(fechas, asistencia.Fecha, comision))
+            {
+                await _database.DeleteAsync(asistencia);
+            }
+        }
+
+        Preferences.Default.Set(clave, true);
     }
 }

@@ -23,6 +23,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     private string _medioContacto = ContactoEstudiante.MediosDisponibles[0];
     private string _motivoContacto = ContactoEstudiante.MotivosDisponibles[0];
     private string _resultadoContacto = string.Empty;
+    private bool _cursaDesdeInicio = true;
+    private DateTime _fechaIngresoSeleccionada = DateTime.Today;
 
     public EstudianteDetalleViewModel(
         DatabaseService databaseService,
@@ -36,6 +38,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         ActualizarEntregaCommand = new Command<EntregaTrabajoViewModel>(
             async entrega => await ActualizarEntregaAsync(entrega));
         RegistrarContactoCommand = new Command(async () => await RegistrarContactoAsync());
+        GuardarFechaIngresoCommand = new Command(async () => await GuardarFechaIngresoAsync());
+        CompletarRegistrosCommand = new Command(async () => await CompletarRegistrosAsync());
     }
 
     public Estudiante? Estudiante { get; private set; }
@@ -118,10 +122,43 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public string Comision => Estudiante?.Comision ?? string.Empty;
 
-    public int TotalInasistencias => Historial.Count(
-        asistencia => asistencia.EstadoSeleccionado == EstadoAsistencia.Ausente);
+    public DateTime? FechaIngreso => Estudiante?.FechaIngreso;
 
-    public int TotalClases => Historial.Count;
+    public string FechaIngresoTexto => Estudiante?.FechaIngreso is { } fecha
+        ? fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
+        : "Desde el inicio";
+
+    public bool CursaDesdeInicio
+    {
+        get => _cursaDesdeInicio;
+        set
+        {
+            if (SetProperty(ref _cursaDesdeInicio, value))
+            {
+                OnPropertyChanged(nameof(MostrarSelectorFechaIngreso));
+            }
+        }
+    }
+
+    public bool MostrarSelectorFechaIngreso => !CursaDesdeInicio;
+
+    public DateTime FechaIngresoSeleccionada
+    {
+        get => _fechaIngresoSeleccionada;
+        set => SetProperty(ref _fechaIngresoSeleccionada, value);
+    }
+
+    public DateTime FechaMaximaIngreso => DateTime.Today;
+
+    public int RegistrosAntesDelIngreso => Historial.Count(asistencia => asistencia.EsAnteriorAlIngreso);
+
+    public bool TieneRegistrosAntesDelIngreso => RegistrosAntesDelIngreso > 0;
+
+    public int TotalInasistencias => Historial.Count(
+        asistencia => !asistencia.EsAnteriorAlIngreso &&
+                      asistencia.EstadoSeleccionado == EstadoAsistencia.Ausente);
+
+    public int TotalClases => Historial.Count(asistencia => !asistencia.EsAnteriorAlIngreso);
 
     public string NivelRiesgo { get; private set; } = "Sin datos";
 
@@ -133,6 +170,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     {
         "Bajo" => Colors.Green,
         "Medio" => Colors.Goldenrod,
+        "Sin datos" => Colors.Gray,
         _ => Colors.DarkRed
     };
 
@@ -165,6 +203,10 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public Command<EntregaTrabajoViewModel> ActualizarEntregaCommand { get; }
 
     public Command RegistrarContactoCommand { get; }
+
+    public Command GuardarFechaIngresoCommand { get; }
+
+    public Command CompletarRegistrosCommand { get; }
 
     public bool EstaCargando
     {
@@ -216,6 +258,91 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Mensaje = $"No se pudo registrar el contacto: {ex.Message}";
+        }
+    }
+
+    private async Task GuardarFechaIngresoAsync()
+    {
+        if (Estudiante is null)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        var fechaIngreso = CursaDesdeInicio
+            ? (DateTime?)null
+            : FechaIngresoSeleccionada.Date;
+
+        if (fechaIngreso is not null && fechaIngreso > DateTime.Today)
+        {
+            Mensaje = "La fecha de ingreso no puede ser futura.";
+            return;
+        }
+
+        try
+        {
+            Estudiante.FechaIngreso = fechaIngreso;
+            await _databaseService.SaveEstudianteAsync(Estudiante);
+            await CargarDatosAsync(_legajo);
+
+            Mensaje = fechaIngreso is null
+                ? "El alumno ahora cuenta desde la primera clase."
+                : $"Fecha de ingreso actualizada al {fechaIngreso:dd/MM/yyyy}.";
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudo guardar la fecha de ingreso: {ex.Message}";
+        }
+    }
+
+    private async Task CompletarRegistrosAsync()
+    {
+        if (Estudiante is null || _legajo <= 0)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        if (Historial.Count == 0)
+        {
+            Mensaje = "El alumno no tiene registros de asistencia. Registralos desde la pantalla de Asistencia.";
+            return;
+        }
+
+        var pagina = Application.Current?.Windows.FirstOrDefault()?.Page;
+
+        if (pagina is null)
+        {
+            Mensaje = "No se pudo mostrar la confirmación.";
+            return;
+        }
+
+        var confirmado = await pagina.DisplayAlertAsync(
+            "Completar registros",
+            "Se crearán registros como Ausente para las clases pasadas sin asistencia, " +
+            "contemplando la fecha de ingreso del alumno. ¿Continuar?",
+            "Completar",
+            "Cancelar");
+
+        if (!confirmado)
+        {
+            Mensaje = "Operación cancelada.";
+            return;
+        }
+
+        try
+        {
+            var fechas = await _databaseService.CompletarAsistenciasFaltantesAsync(_legajo);
+            await CargarDatosAsync(_legajo);
+
+            Mensaje = fechas.Count == 0
+                ? "No había registros de asistencia faltantes."
+                : $"Se completaron {fechas.Count} fecha{(fechas.Count == 1 ? string.Empty : "s")}: " +
+                  string.Join(", ", fechas.Select(fecha => fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture))) + ".";
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudieron completar los registros: {ex.Message}";
         }
     }
 
@@ -306,6 +433,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             if (estudiante is null)
             {
                 Estudiante = null;
+                CursaDesdeInicio = true;
+                FechaIngresoSeleccionada = DateTime.Today;
                 NivelRiesgo = "Sin datos";
                 EstadoSeguimiento = "Sin datos";
                 PuedeRegistrarContacto = false;
@@ -316,14 +445,22 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             }
 
             Estudiante = estudiante;
+            CursaDesdeInicio = estudiante.FechaIngreso is null;
+            FechaIngresoSeleccionada = estudiante.FechaIngreso ?? DateTime.Today;
 
             var asistencias = await _databaseService.GetAsistenciasPorLegajoAsync(_legajo);
+            var fechaIngreso = estudiante.FechaIngreso?.Date;
+
             foreach (var asistencia in asistencias)
             {
-                Historial.Add(new AsistenciaHistorialViewModel(asistencia));
+                Historial.Add(new AsistenciaHistorialViewModel(
+                    asistencia,
+                    fechaIngreso is not null && asistencia.Fecha.Date < fechaIngreso));
             }
 
-            var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+            var trabajos = await _databaseService.GetTrabajosPracticosAsync(
+                soloObligatorios: true,
+                comision: estudiante.Comision);
             var entregas = await _databaseService.GetEntregasPorLegajoAsync(_legajo);
             TrabajosPracticos.Clear();
 
@@ -371,6 +508,10 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Apellido));
         OnPropertyChanged(nameof(Nombre));
         OnPropertyChanged(nameof(Comision));
+        OnPropertyChanged(nameof(FechaIngreso));
+        OnPropertyChanged(nameof(FechaIngresoTexto));
+        OnPropertyChanged(nameof(RegistrosAntesDelIngreso));
+        OnPropertyChanged(nameof(TieneRegistrosAntesDelIngreso));
         OnPropertyChanged(nameof(TotalInasistencias));
         OnPropertyChanged(nameof(TotalClases));
         OnPropertyChanged(nameof(NivelRiesgo));
@@ -396,19 +537,21 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         }
 
         var asistencias = await _databaseService.GetAsistenciasPorLegajoAsync(_legajo);
-        var totalClases = await _databaseService.GetTotalClasesAsync();
-        var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+        var fechasClase = await _databaseService.GetFechasClaseAsync();
+        var trabajos = await _databaseService.GetTrabajosPracticosAsync(
+            soloObligatorios: true,
+            comision: Estudiante.Comision);
         var entregas = await _databaseService.GetEntregasPorLegajoAsync(_legajo);
         var resultado = RiesgoEstudianteService.Calcular(
             Estudiante,
             asistencias,
-            totalClases,
+            fechasClase,
             trabajos,
             entregas,
             _configuracionRiesgoService);
 
-        NivelRiesgo = resultado.Nivel.ToString();
-        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ToString();
+        NivelRiesgo = resultado.Nivel.ObtenerEtiqueta();
+        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
         PuedeRegistrarContacto = resultado.RequiereContacto();
         MotivoRiesgo = resultado.Motivo;
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;

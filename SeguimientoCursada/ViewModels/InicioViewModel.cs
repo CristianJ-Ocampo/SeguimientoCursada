@@ -42,6 +42,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     public int EstudiantesOptimos { get; private set; }
     public int EstudiantesEnRiesgo { get; private set; }
     public int EstudiantesCriticos { get; private set; }
+    public int EstudiantesSinDatos { get; private set; }
     public decimal PromedioAsistencia { get; private set; }
     public decimal PromedioEntregas { get; private set; }
     public int Contactados { get; private set; }
@@ -65,18 +66,32 @@ public sealed class InicioViewModel : INotifyPropertyChanged
                 return;
             }
 
-            var totalClases = await _databaseService.GetTotalClasesAsync();
+            var fechasClase = await _databaseService.GetFechasClaseAsync();
             var trabajos = await _databaseService.GetTrabajosPracticosAsync(true);
             var asistencias = await _databaseService.GetAsistenciasAsync();
             var entregas = await _databaseService.GetEntregasAsync();
             var contactos = await _databaseService.GetUltimosContactosAsync();
-            var resultados = estudiantes.Select(e => RiesgoEstudianteService.Calcular(e, asistencias, totalClases, trabajos, entregas, _configuracionRiesgoService)).ToList();
+            var resultados = estudiantes.Select(e => RiesgoEstudianteService.Calcular(e, asistencias, fechasClase, trabajos, entregas, _configuracionRiesgoService)).ToList();
 
             EstudiantesOptimos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Optimo);
             EstudiantesEnRiesgo = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.EnRiesgo);
             EstudiantesCriticos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Critico);
-            PromedioAsistencia = resultados.Any() ? Math.Round(resultados.Average(r => r.PorcentajeAsistencia), 2) : 0;
-            PromedioEntregas = resultados.Any() ? Math.Round(resultados.Average(r => r.PorcentajeEntregas), 2) : 0;
+            EstudiantesSinDatos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.SinDatos);
+            var promediosAsistencia = resultados
+                .Where(resultado => !resultado.SinRegistrosAsistencia &&
+                                    resultado.TotalClasesConfiguradas > 0)
+                .Select(resultado => resultado.PorcentajeAsistencia)
+                .ToList();
+            PromedioAsistencia = promediosAsistencia.Count > 0
+                ? Math.Round(promediosAsistencia.Average(), 2)
+                : 0;
+            var promediosEntregas = resultados
+                .Where(resultado => resultado.TotalTrabajosObligatorios > 0)
+                .Select(resultado => resultado.PorcentajeEntregas)
+                .ToList();
+            PromedioEntregas = promediosEntregas.Count > 0
+                ? Math.Round(promediosEntregas.Average(), 2)
+                : 0;
             var intervenibles = resultados.Where(r => r.RequiereContacto()).ToList();
             Contactados = estudiantes.Zip(resultados).Count(pair => pair.Second.RequiereContacto() && contactos.Any(c => c.LegajoEstudiante == pair.First.Legajo));
             PendientesContacto = intervenibles.Count - Contactados;
@@ -94,7 +109,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
 
     private void ReiniciarMetricas()
     {
-        EstudiantesOptimos = EstudiantesEnRiesgo = EstudiantesCriticos = Contactados = PendientesContacto = 0;
+        EstudiantesOptimos = EstudiantesEnRiesgo = EstudiantesCriticos = EstudiantesSinDatos = Contactados = PendientesContacto = 0;
         PromedioAsistencia = PromedioEntregas = 0;
         NotificarMetricas();
     }
@@ -104,6 +119,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(EstudiantesOptimos));
         OnPropertyChanged(nameof(EstudiantesEnRiesgo));
         OnPropertyChanged(nameof(EstudiantesCriticos));
+        OnPropertyChanged(nameof(EstudiantesSinDatos));
         OnPropertyChanged(nameof(PromedioAsistencia));
         OnPropertyChanged(nameof(PromedioEntregas));
         OnPropertyChanged(nameof(Contactados));

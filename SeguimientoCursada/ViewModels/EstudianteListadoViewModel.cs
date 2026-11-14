@@ -31,7 +31,7 @@ public sealed class EstudianteListadoViewModel
 
     public ResultadoRiesgo Resultado { get; }
 
-    public string EstadoSeguimiento => Resultado.ObtenerEstadoSeguimiento().ToString();
+    public string EstadoSeguimiento => Resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
 
     public bool PuedeMostrarSeguimiento => Resultado.RequiereContacto();
 

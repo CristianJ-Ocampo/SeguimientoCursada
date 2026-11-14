@@ -6,7 +6,8 @@ public enum NivelRiesgo
 {
     Bajo,
     Medio,
-    Alto
+    Alto,
+    SinDatos
 }
 
 public enum EstadoSeguimiento
@@ -14,7 +15,8 @@ public enum EstadoSeguimiento
     Optimo,
     Regular,
     EnRiesgo,
-    Critico
+    Critico,
+    SinDatos
 }
 
 public sealed record ResultadoRiesgo(
@@ -26,7 +28,8 @@ public sealed record ResultadoRiesgo(
     decimal PorcentajeAsistencia = 0,
     int TrabajosEntregados = 0,
     int TotalTrabajosObligatorios = 0,
-    decimal PorcentajeEntregas = 0);
+    decimal PorcentajeEntregas = 0,
+    bool SinRegistrosAsistencia = false);
 
 public static class ResultadoRiesgoExtensions
 {
@@ -37,12 +40,25 @@ public static class ResultadoRiesgoExtensions
             NivelRiesgo.Bajo => EstadoSeguimiento.Optimo,
             NivelRiesgo.Medio => EstadoSeguimiento.EnRiesgo,
             NivelRiesgo.Alto => EstadoSeguimiento.Critico,
+            NivelRiesgo.SinDatos => EstadoSeguimiento.SinDatos,
             _ => EstadoSeguimiento.Optimo
         };
     }
 
     public static bool RequiereContacto(this ResultadoRiesgo resultado) =>
         resultado.ObtenerEstadoSeguimiento() is EstadoSeguimiento.EnRiesgo or EstadoSeguimiento.Critico;
+
+    public static string ObtenerEtiqueta(this NivelRiesgo nivel) => nivel switch
+    {
+        NivelRiesgo.SinDatos => "Sin datos",
+        _ => nivel.ToString()
+    };
+
+    public static string ObtenerEtiqueta(this EstadoSeguimiento estado) => estado switch
+    {
+        EstadoSeguimiento.SinDatos => "Sin datos",
+        _ => estado.ToString()
+    };
 }
 
 public static class RiesgoEstudianteService
@@ -76,29 +92,64 @@ public static class RiesgoEstudianteService
     public static ResultadoRiesgo Calcular(
         Estudiante estudiante,
         IEnumerable<Asistencia> asistencias,
-        int totalClasesConfiguradas,
+        IEnumerable<FechaClase> fechasClase,
         IEnumerable<TrabajoPractico> trabajosObligatorios,
         IEnumerable<EntregaTrabajo> entregas,
         ConfiguracionRiesgoService? configuracion = null)
     {
         ArgumentNullException.ThrowIfNull(estudiante);
         ArgumentNullException.ThrowIfNull(asistencias);
+        ArgumentNullException.ThrowIfNull(fechasClase);
         ArgumentNullException.ThrowIfNull(trabajosObligatorios);
         ArgumentNullException.ThrowIfNull(entregas);
         configuracion ??= new ConfiguracionRiesgoService();
 
+        var fechaIngreso = estudiante.FechaIngreso?.Date;
+
+        // Solo cuentan las fechas de cursada que aplican a la comisión del estudiante
+        // y que son iguales o posteriores a su fecha de ingreso.
+        var fechasComputables = fechasClase
+            .Where(fechaClase => fechaClase.EsDiaClase &&
+                                 (fechaIngreso is null || fechaClase.Fecha.Date >= fechaIngreso) &&
+                                 (string.IsNullOrWhiteSpace(fechaClase.Comision) ||
+                                  string.Equals(
+                                      fechaClase.Comision,
+                                      estudiante.Comision,
+                                      StringComparison.Ordinal)))
+            .Select(fechaClase => fechaClase.Fecha.Date)
+            .ToHashSet();
+
+        var totalClasesConfiguradas = fechasComputables.Count;
+
         var asistenciasEstudiante = asistencias
             .Where(asistencia => asistencia.LegajoEstudiante == estudiante.Legajo)
             .ToList();
-        var inasistencias = asistenciasEstudiante.Count(asistencia =>
+
+        // El numerador también se limita a las fechas computables para evitar
+        // porcentajes > 100% y para excluir registros anteriores al ingreso.
+        var asistenciasComputables = asistenciasEstudiante
+            .Where(asistencia => fechasComputables.Contains(asistencia.Fecha.Date))
+            .ToList();
+
+        var sinRegistrosAsistencia = asistenciasComputables.Count == 0;
+
+        var inasistencias = asistenciasComputables.Count(asistencia =>
             EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Ausente);
-        var clasesAsistidas = asistenciasEstudiante.Count(asistencia =>
+        var clasesAsistidas = asistenciasComputables.Count(asistencia =>
             EstadoAsistencia.Normalizar(asistencia) is EstadoAsistencia.Presente or EstadoAsistencia.Justificado);
         var porcentajeAsistencia = totalClasesConfiguradas > 0
             ? Math.Round(clasesAsistidas * 100m / totalClasesConfiguradas, 2)
             : 0m;
 
-        var trabajos = trabajosObligatorios.Where(trabajo => trabajo.Obligatorio && trabajo.Activo).ToList();
+        var trabajos = trabajosObligatorios
+            .Where(trabajo => trabajo.Obligatorio &&
+                              trabajo.Activo &&
+                              (string.IsNullOrWhiteSpace(trabajo.Comision) ||
+                               string.Equals(
+                                   trabajo.Comision,
+                                   estudiante.Comision,
+                                   StringComparison.Ordinal)))
+            .ToList();
         var entregasEstudiante = entregas
             .Where(entrega => entrega.LegajoEstudiante == estudiante.Legajo && entrega.Entregado)
             .Select(entrega => entrega.TrabajoPracticoId)
@@ -108,18 +159,23 @@ public static class RiesgoEstudianteService
             ? Math.Round(trabajosEntregados * 100m / trabajos.Count, 2)
             : 100m;
 
-        var asistenciaCritica = totalClasesConfiguradas > 0 &&
+        var sinDatos = sinRegistrosAsistencia && trabajos.Count == 0;
+        var asistenciaCritica = !sinRegistrosAsistencia &&
+            totalClasesConfiguradas > 0 &&
             porcentajeAsistencia < configuracion.AsistenciaCritica;
-        var asistenciaInsuficiente = totalClasesConfiguradas > 0 &&
+        var asistenciaInsuficiente = !sinRegistrosAsistencia &&
+            totalClasesConfiguradas > 0 &&
             porcentajeAsistencia < configuracion.AsistenciaRegular;
         var entregasInsuficientes = trabajos.Count > 0 &&
             porcentajeEntregas < configuracion.EntregasMinimas;
-        var nivel = asistenciaInsuficiente || entregasInsuficientes
-            ? (asistenciaCritica || inasistencias >= UmbralRiesgoAlto ||
-                (asistenciaInsuficiente && entregasInsuficientes)
-                ? NivelRiesgo.Alto
-                : NivelRiesgo.Medio)
-            : NivelRiesgo.Bajo;
+        var nivel = sinDatos
+            ? NivelRiesgo.SinDatos
+            : asistenciaInsuficiente || entregasInsuficientes
+                ? (asistenciaCritica || inasistencias >= UmbralRiesgoAlto ||
+                    (asistenciaInsuficiente && entregasInsuficientes)
+                    ? NivelRiesgo.Alto
+                    : NivelRiesgo.Medio)
+                : NivelRiesgo.Bajo;
 
         var motivos = new List<string>();
         if (asistenciaInsuficiente)
@@ -136,9 +192,18 @@ public static class RiesgoEstudianteService
             motivos.Add($"entregas {porcentajeEntregas:0.##}% (mínimo {configuracion.EntregasMinimas:0}%)");
         }
 
-        var motivo = motivos.Count == 0
-            ? "Asistencia y entregas dentro de los umbrales establecidos."
-            : $"Riesgo por: {string.Join(" y ", motivos)}.";
+        var motivoSinAsistencia = fechaIngreso is null
+            ? "Sin ningún registro de asistencia."
+            : $"Sin registros de asistencia desde el ingreso ({fechaIngreso:dd/MM/yyyy}).";
+
+        var motivo = sinDatos
+            ? motivoSinAsistencia
+            : motivos.Count == 0
+                ? sinRegistrosAsistencia
+                    ? motivoSinAsistencia
+                    : "Asistencia y entregas dentro de los umbrales establecidos."
+                : $"Riesgo por: {string.Join(" y ", motivos)}." +
+                  (sinRegistrosAsistencia ? " " + motivoSinAsistencia : string.Empty);
 
         return new ResultadoRiesgo(
             nivel,
@@ -149,6 +214,7 @@ public static class RiesgoEstudianteService
             porcentajeAsistencia,
             trabajosEntregados,
             trabajos.Count,
-            porcentajeEntregas);
+            porcentajeEntregas,
+            sinRegistrosAsistencia);
     }
 }

@@ -7,7 +7,7 @@
              x:Name="EstudiantesPageRoot"
              x:DataType="viewModels:EstudiantesViewModel"
              Title="Estudiantes">
-    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12">
+    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12">
             <Label Text="Alta de estudiantes"
                    Grid.Row="0"
                    Style="{StaticResource Headline}"
@@ -29,25 +29,37 @@
                     ItemsSource="{Binding Comisiones}"
                     SelectedItem="{Binding ComisionSeleccionada}" />
 
+            <HorizontalStackLayout Grid.Row="5" Spacing="8">
+                <CheckBox IsChecked="{Binding SeIncorporoTarde}" />
+                <Label Text="Se incorporó después del inicio"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <DatePicker Grid.Row="6"
+                        Date="{Binding FechaIngresoSeleccionada}"
+                        MaximumDate="{Binding FechaMaximaIngreso}"
+                        Format="dd/MM/yyyy"
+                        IsVisible="{Binding MostrarSelectorFechaIngreso}" />
+
             <Button Text="Agregar estudiante"
-                    Grid.Row="5"
+                    Grid.Row="7"
                     Command="{Binding AgregarEstudianteCommand}"
                     HorizontalOptions="Fill" />
 
             <Button Text="Importar desde CSV"
-                    Grid.Row="6"
+                    Grid.Row="8"
                     Command="{Binding ImportarCsvCommand}"
                     HorizontalOptions="Fill" />
 
-            <Label Text="Formato: legajo;Apellido;Nombre. La cabecera es opcional."
-                   Grid.Row="7"
+            <Label Text="Formato: legajo;Apellido;Nombre;Fecha de ingreso (opcional). La cabecera es opcional."
+                   Grid.Row="9"
                    FontSize="12" />
 
             <Label Text="{Binding MensajeValidacion}"
                    TextColor="Red"
-                   Grid.Row="8" />
+                   Grid.Row="10" />
 
-            <Grid Grid.Row="9" RowDefinitions="Auto,*" RowSpacing="8">
+            <Grid Grid.Row="11" RowDefinitions="Auto,*" RowSpacing="8">
                 <Grid ColumnDefinitions="*,Auto">
                     <Label Text="Nómina de estudiantes"
                            Style="{StaticResource SubHeadline}"

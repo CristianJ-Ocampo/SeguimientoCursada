@@ -39,6 +39,9 @@
                     </Border>
                 </Grid>
 
+                <Label Text="{Binding EstudiantesSinDatos, StringFormat='Sin datos: {0}'}"
+                       TextColor="Gray" />
+
                 <Border Padding="12" Stroke="LightGray">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Indicadores generales" FontAttributes="Bold" />

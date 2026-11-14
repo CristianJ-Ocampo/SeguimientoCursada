@@ -17,7 +17,7 @@
                     StrokeThickness="1"
                     Padding="16">
                 <Grid ColumnDefinitions="Auto,*"
-                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="12"
                       RowSpacing="8">
                     <Label Grid.Row="0" Text="Apellido:" FontAttributes="Bold" />
@@ -28,16 +28,40 @@
                     <Label Grid.Row="2" Grid.Column="1" Text="{Binding Legajo}" />
                     <Label Grid.Row="3" Text="Comisión:" FontAttributes="Bold" />
                     <Label Grid.Row="3" Grid.Column="1" Text="{Binding Comision}" />
-                    <Label Grid.Row="4" Text="Riesgo:" FontAttributes="Bold" />
-                    <Label Grid.Row="4" Grid.Column="1"
+                    <Label Grid.Row="4" Text="Ingreso:" FontAttributes="Bold" />
+                    <Label Grid.Row="4" Grid.Column="1" Text="{Binding FechaIngresoTexto}" />
+                    <Label Grid.Row="5" Text="Riesgo:" FontAttributes="Bold" />
+                    <Label Grid.Row="5" Grid.Column="1"
                            Text="{Binding NivelRiesgo}"
                            FontAttributes="Bold"
                            TextColor="{Binding ColorNivelRiesgo}" />
-                    <Label Grid.Row="5" Text="Detalle:" FontAttributes="Bold" />
-                    <Label Grid.Row="5" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
-                    <Label Grid.Row="6" Text="Estado:" FontAttributes="Bold" />
-                    <Label Grid.Row="6" Grid.Column="1" Text="{Binding EstadoSeguimiento}" />
+                    <Label Grid.Row="6" Text="Detalle:" FontAttributes="Bold" />
+                    <Label Grid.Row="6" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
+                    <Label Grid.Row="7" Text="Estado:" FontAttributes="Bold" />
+                    <Label Grid.Row="7" Grid.Column="1" Text="{Binding EstadoSeguimiento}" />
                 </Grid>
+            </Border>
+
+            <Border Stroke="LightGray"
+                    StrokeThickness="1"
+                    Padding="12">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Fecha de ingreso" FontAttributes="Bold" />
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding CursaDesdeInicio}" />
+                        <Label Text="Cursó desde el inicio"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <DatePicker Date="{Binding FechaIngresoSeleccionada}"
+                                MaximumDate="{Binding FechaMaximaIngreso}"
+                                Format="dd/MM/yyyy"
+                                IsVisible="{Binding MostrarSelectorFechaIngreso}" />
+                    <Button Text="Guardar fecha de ingreso"
+                            Command="{Binding GuardarFechaIngresoCommand}" />
+                    <Label Text="{Binding RegistrosAntesDelIngreso, StringFormat='Registros previos al ingreso (no computan): {0}'}"
+                           TextColor="Gray"
+                           IsVisible="{Binding TieneRegistrosAntesDelIngreso}" />
+                </VerticalStackLayout>
             </Border>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
@@ -82,8 +106,14 @@
                         <Grid Padding="12"
                               ColumnDefinitions="*,Auto,Auto"
                               ColumnSpacing="12">
-                            <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
-                                   VerticalOptions="Center" />
+                            <VerticalStackLayout Grid.Column="0"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}" />
+                                <Label Text="Antes del ingreso"
+                                       TextColor="Gray"
+                                       FontSize="12"
+                                       IsVisible="{Binding EsAnteriorAlIngreso}" />
+                            </VerticalStackLayout>
                             <Picker Grid.Column="1"
                                     ItemsSource="{Binding Source={x:Reference DetallePageRoot}, Path=BindingContext.EstadosAsistencia}"
                                     SelectedItem="{Binding EstadoSeleccionado}"
@@ -98,6 +128,9 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
+
+            <Button Text="Completar registros faltantes"
+                    Command="{Binding CompletarRegistrosCommand}" />
 
             <Label Text="Trabajos prácticos obligatorios"
                    Style="{StaticResource SubHeadline}"

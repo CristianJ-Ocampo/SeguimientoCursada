@@ -15,6 +15,7 @@ public class AsistenciaViewModel : INotifyPropertyChanged
     private string _comisionSeleccionada = "1° A";
     private DateTime _fechaSeleccionada = DateTime.Today;
     private string _mensajeValidacion = string.Empty;
+    private int _versionActualizacion;
 
     public AsistenciaViewModel()
         : this(ObtenerDatabaseService())
@@ -25,9 +26,9 @@ public class AsistenciaViewModel : INotifyPropertyChanged
     {
         _databaseService = databaseService;
         GuardarAsistenciaCommand = new Command(async () => await GuardarAsistenciaAsync());
-        EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += (_, _) => ActualizarEstudiantes();
-        ActualizarEstudiantes();
-        _ = CargarAsistenciasAsync();
+        EstudiantesViewModel.TodosLosEstudiantes.CollectionChanged += (_, _) =>
+            _ = ActualizarEstudiantesAsync();
+        _ = RecargarAsync();
     }
 
     public IReadOnlyList<string> Comisiones => ComisionesDisponibles;
@@ -39,7 +40,7 @@ public class AsistenciaViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _comisionSeleccionada, value))
             {
-                ActualizarEstudiantes();
+                _ = ActualizarEstudiantesAsync();
             }
         }
     }
@@ -47,7 +48,13 @@ public class AsistenciaViewModel : INotifyPropertyChanged
     public DateTime FechaSeleccionada
     {
         get => _fechaSeleccionada;
-        set => SetProperty(ref _fechaSeleccionada, value);
+        set
+        {
+            if (SetProperty(ref _fechaSeleccionada, value))
+            {
+                _ = ActualizarEstudiantesAsync();
+            }
+        }
     }
 
     public ObservableCollection<EstudianteAsistenciaViewModel> Estudiantes { get; } = new();
@@ -61,6 +68,12 @@ public class AsistenciaViewModel : INotifyPropertyChanged
     }
 
     public Command GuardarAsistenciaCommand { get; }
+
+    public async Task RecargarAsync()
+    {
+        await CargarAsistenciasAsync();
+        await ActualizarEstudiantesAsync();
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -85,27 +98,31 @@ public class AsistenciaViewModel : INotifyPropertyChanged
         }
 
         var fecha = FechaSeleccionada.Date;
-        var registrosAnteriores = Asistencias
-            .Where(asistencia => asistencia.Comision == ComisionSeleccionada && asistencia.Fecha.Date == fecha)
+        var comision = ComisionSeleccionada;
+        var legajosVisibles = Estudiantes
+            .Select(estudiante => estudiante.Legajo)
+            .ToHashSet();
+
+        var registrosAnteriores = (await _databaseService.GetAsistenciasAsync())
+            .Where(asistencia =>
+                asistencia.Fecha.Date == fecha &&
+                string.Equals(
+                    (asistencia.Comision ?? string.Empty).Trim(),
+                    comision,
+                    StringComparison.Ordinal) &&
+                legajosVisibles.Contains(asistencia.LegajoEstudiante))
             .ToList();
 
-        var nuevosRegistros = new List<Asistencia>();
-        var siguienteId = Asistencias.Count == 0 ? 1 : Asistencias.Max(asistencia => asistencia.Id) + 1;
-
-        foreach (var estudiante in Estudiantes)
-        {
-            nuevosRegistros.Add(new Asistencia
+        var nuevosRegistros = Estudiantes
+            .Select(estudiante => new Asistencia
             {
-                Id = siguienteId++,
                 LegajoEstudiante = estudiante.Legajo,
                 Fecha = fecha,
                 Presente = estudiante.Presente,
-                Estado = estudiante.Presente
-                    ? EstadoAsistencia.Presente
-                    : EstadoAsistencia.Ausente,
-                Comision = ComisionSeleccionada
-            });
-        }
+                Estado = estudiante.Estado,
+                Comision = comision
+            })
+            .ToList();
 
         try
         {
@@ -119,16 +136,20 @@ public class AsistenciaViewModel : INotifyPropertyChanged
                 await _databaseService.SaveAsistenciaAsync(registro);
             }
 
-            await CargarAsistenciasAsync();
+            var fechaAgregada = await _databaseService.EnsureFechaClaseAsync(fecha, comision);
+
+            await RecargarAsync();
+            MensajeValidacion = fechaAgregada
+                ? "Asistencia guardada correctamente. La fecha se agregó al calendario como día de cursada."
+                : "Asistencia guardada correctamente.";
         }
         catch (Exception ex)
         {
-            await CargarAsistenciasAsync();
+            await RecargarAsync();
             MensajeValidacion = $"No se pudo guardar la asistencia: {ex.Message}";
             return;
         }
 
-        MensajeValidacion = "Asistencia guardada correctamente.";
         await MostrarAlertaAsync(MensajeValidacion);
     }
 
@@ -150,23 +171,72 @@ public class AsistenciaViewModel : INotifyPropertyChanged
         }
     }
 
+    private async Task ActualizarEstudiantesAsync()
+    {
+        var version = ++_versionActualizacion;
+        var comision = ComisionSeleccionada;
+        var fecha = FechaSeleccionada.Date;
+
+        try
+        {
+            var asistencias = await _databaseService.GetAsistenciasAsync();
+
+            if (version != _versionActualizacion)
+            {
+                return;
+            }
+
+            var registros = asistencias
+                .Where(asistencia =>
+                    asistencia.Fecha.Date == fecha &&
+                    string.Equals(
+                        (asistencia.Comision ?? string.Empty).Trim(),
+                        comision,
+                        StringComparison.Ordinal))
+                .GroupBy(asistencia => asistencia.LegajoEstudiante)
+                .ToDictionary(grupo => grupo.Key, grupo => grupo.First());
+
+            var estudiantes = (await _databaseService.GetEstudiantesAsync())
+                .Where(estudiante => string.Equals(
+                    estudiante.Comision,
+                    comision,
+                    StringComparison.Ordinal))
+                .Where(estudiante =>
+                    estudiante.FechaIngreso is null ||
+                    estudiante.FechaIngreso.Value.Date <= fecha)
+                .OrderBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(estudiante => estudiante.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            var resultado = new List<EstudianteAsistenciaViewModel>();
+
+            foreach (var estudiante in estudiantes)
+            {
+                registros.TryGetValue(estudiante.Legajo, out var existente);
+                resultado.Add(new EstudianteAsistenciaViewModel(estudiante, existente));
+            }
+
+            if (version != _versionActualizacion)
+            {
+                return;
+            }
+
+            Estudiantes.Clear();
+            foreach (var estudiante in resultado)
+            {
+                Estudiantes.Add(estudiante);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensajeValidacion = $"No se pudieron cargar los estudiantes: {ex.Message}";
+        }
+    }
+
     private static DatabaseService ObtenerDatabaseService()
     {
         return Application.Current?.Handler?.MauiContext?.Services.GetRequiredService<DatabaseService>()
             ?? throw new InvalidOperationException("DatabaseService no está disponible.");
-    }
-
-    private void ActualizarEstudiantes()
-    {
-        Estudiantes.Clear();
-
-        foreach (var estudiante in EstudiantesViewModel.TodosLosEstudiantes
-                     .Where(estudiante => estudiante.Comision == ComisionSeleccionada)
-                     .OrderBy(estudiante => estudiante.Apellido, StringComparer.CurrentCultureIgnoreCase)
-                     .ThenBy(estudiante => estudiante.Nombre, StringComparer.CurrentCultureIgnoreCase))
-        {
-            Estudiantes.Add(new EstudianteAsistenciaViewModel(estudiante));
-        }
     }
 
     private static Task MostrarAlertaAsync(string mensaje)
@@ -191,12 +261,17 @@ public class AsistenciaViewModel : INotifyPropertyChanged
 public class EstudianteAsistenciaViewModel : INotifyPropertyChanged
 {
     private bool _presente;
+    private string _estado;
 
-    public EstudianteAsistenciaViewModel(Estudiante estudiante)
+    public EstudianteAsistenciaViewModel(Estudiante estudiante, Asistencia? existente = null)
     {
         Legajo = estudiante.Legajo;
         Apellido = estudiante.Apellido;
         Nombre = estudiante.Nombre;
+        _estado = existente is null
+            ? EstadoAsistencia.Ausente
+            : EstadoAsistencia.Normalizar(existente);
+        _presente = _estado is EstadoAsistencia.Presente or EstadoAsistencia.Justificado;
     }
 
     public int Legajo { get; }
@@ -204,6 +279,8 @@ public class EstudianteAsistenciaViewModel : INotifyPropertyChanged
     public string Apellido { get; }
 
     public string Nombre { get; }
+
+    public string Estado => _estado;
 
     public bool Presente
     {
@@ -216,6 +293,7 @@ public class EstudianteAsistenciaViewModel : INotifyPropertyChanged
             }
 
             _presente = value;
+            _estado = value ? EstadoAsistencia.Presente : EstadoAsistencia.Ausente;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Presente)));
         }
     }

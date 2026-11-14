@@ -18,9 +18,11 @@ public class EstudiantesViewModel : INotifyPropertyChanged
     private string _nombre = string.Empty;
     private string _comisionSeleccionada = "1° A";
     private string _mensajeValidacion = string.Empty;
+    private bool _seIncorporoTarde;
+    private DateTime _fechaIngresoSeleccionada = DateTime.Today;
     private readonly ConfiguracionRiesgoService _configuracionRiesgoService;
     private bool _importandoCsv;
-    private int _totalClases;
+    private IReadOnlyList<FechaClase> _fechasClase = Array.Empty<FechaClase>();
     private IReadOnlyList<TrabajoPractico> _trabajos = Array.Empty<TrabajoPractico>();
     private IReadOnlyList<Asistencia> _asistencias = Array.Empty<Asistencia>();
     private IReadOnlyList<EntregaTrabajo> _entregas = Array.Empty<EntregaTrabajo>();
@@ -89,6 +91,28 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool SeIncorporoTarde
+    {
+        get => _seIncorporoTarde;
+        set
+        {
+            if (SetProperty(ref _seIncorporoTarde, value))
+            {
+                OnPropertyChanged(nameof(MostrarSelectorFechaIngreso));
+            }
+        }
+    }
+
+    public bool MostrarSelectorFechaIngreso => SeIncorporoTarde;
+
+    public DateTime FechaIngresoSeleccionada
+    {
+        get => _fechaIngresoSeleccionada;
+        set => SetProperty(ref _fechaIngresoSeleccionada, value);
+    }
+
+    public DateTime FechaMaximaIngreso => DateTime.Today;
+
     public int CantidadEstudiantes => EstudiantesFiltrados.Count;
 
     public string MensajeNominaVacia =>
@@ -142,6 +166,12 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (SeIncorporoTarde && FechaIngresoSeleccionada.Date > DateTime.Today)
+        {
+            await MostrarAlertaAsync("La fecha de ingreso no puede ser futura.");
+            return;
+        }
+
         if (Estudiantes.Any(estudiante => estudiante.Legajo == legajo))
         {
             await MostrarAlertaAsync($"El legajo {legajo} ya está registrado.");
@@ -153,7 +183,8 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             Legajo = legajo,
             Apellido = Apellido.Trim(),
             Nombre = Nombre.Trim(),
-            Comision = ComisionSeleccionada
+            Comision = ComisionSeleccionada,
+            FechaIngreso = SeIncorporoTarde ? FechaIngresoSeleccionada.Date : null
         };
 
         try
@@ -171,6 +202,8 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         InputLegajo = string.Empty;
         Apellido = string.Empty;
         Nombre = string.Empty;
+        SeIncorporoTarde = false;
+        FechaIngresoSeleccionada = DateTime.Today;
         MensajeValidacion = string.Empty;
         ActualizarNominaFiltrada();
     }
@@ -348,6 +381,19 @@ public class EstudiantesViewModel : INotifyPropertyChanged
                 continue;
             }
 
+            DateTime? fechaIngreso = null;
+
+            if (campos.Count >= 4 && !string.IsNullOrWhiteSpace(campos[3]))
+            {
+                if (!TryParseFechaIngreso(campos[3], out var fecha))
+                {
+                    resultado.FilasOmitidas++;
+                    continue;
+                }
+
+                fechaIngreso = fecha.Date;
+            }
+
             if (legajosExistentes.Contains(legajo) ||
                 !legajosArchivo.Add(legajo))
             {
@@ -360,7 +406,8 @@ public class EstudiantesViewModel : INotifyPropertyChanged
                 Legajo = legajo,
                 Apellido = apellido,
                 Nombre = nombre,
-                Comision = comision
+                Comision = comision,
+                FechaIngreso = fechaIngreso
             });
         }
 
@@ -387,6 +434,23 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         }
 
         return lineas;
+    }
+
+    private static bool TryParseFechaIngreso(string valor, out DateTime fecha)
+    {
+        var formatos = new[] { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "d-M-yyyy" };
+
+        return DateTime.TryParseExact(
+                   valor.Trim(),
+                   formatos,
+                   CultureInfo.InvariantCulture,
+                   DateTimeStyles.None,
+                   out fecha) ||
+               DateTime.TryParse(
+                   valor.Trim(),
+                   CultureInfo.CurrentCulture,
+                   DateTimeStyles.None,
+                   out fecha);
     }
 
     private static bool EsCabecera(IReadOnlyList<string> campos)
@@ -496,7 +560,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
         {
             var estudiantes = await _databaseService.GetEstudiantesAsync();
             var contactos = await _databaseService.GetUltimosContactosAsync();
-            var totalClases = await _databaseService.GetTotalClasesAsync();
+            var fechasClase = await _databaseService.GetFechasClaseAsync();
             var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
             var asistencias = await _databaseService.GetAsistenciasAsync();
             var entregas = await _databaseService.GetEntregasAsync();
@@ -513,7 +577,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
                 Estudiantes.Add(estudiante);
             }
 
-            _totalClases = totalClases;
+            _fechasClase = fechasClase;
             _trabajos = trabajos;
             _asistencias = asistencias;
             _entregas = entregas;
@@ -571,7 +635,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             var resultado = RiesgoEstudianteService.Calcular(
                 estudiante,
                 _asistencias,
-                _totalClases,
+                _fechasClase,
                 _trabajos,
                 _entregas,
                 _configuracionRiesgoService);

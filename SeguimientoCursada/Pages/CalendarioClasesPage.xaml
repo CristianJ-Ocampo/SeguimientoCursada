@@ -14,6 +14,12 @@
                    SemanticProperties.HeadingLevel="Level1" />
 
             <VerticalStackLayout Spacing="4">
+                <Label Text="Comisión" />
+                <Picker ItemsSource="{Binding Comisiones}"
+                        SelectedItem="{Binding ComisionSeleccionada}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="4">
                 <Label Text="Fecha" />
                 <DatePicker Date="{Binding FechaSeleccionada}"
                             Format="dd/MM/yyyy" />
@@ -54,6 +60,8 @@
                                 <VerticalStackLayout>
                                     <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
                                            FontAttributes="Bold" />
+                                    <Label Text="{Binding ComisionMostrada}"
+                                           TextColor="DarkBlue" />
                                     <Label Text="{Binding Descripcion}"
                                            IsVisible="{Binding TieneDescripcion}" />
                                     <Label Text="Día de cursada"

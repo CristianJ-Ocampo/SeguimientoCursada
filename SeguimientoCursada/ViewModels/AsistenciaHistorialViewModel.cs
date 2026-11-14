@@ -8,15 +8,17 @@ public sealed class AsistenciaHistorialViewModel
 {
     private string _estadoSeleccionado;
 
-    public AsistenciaHistorialViewModel(Asistencia asistencia)
+    public AsistenciaHistorialViewModel(Asistencia asistencia, bool esAnteriorAlIngreso = false)
     {
         Asistencia = asistencia;
         Fecha = asistencia.Fecha;
+        EsAnteriorAlIngreso = esAnteriorAlIngreso;
         _estadoSeleccionado = EstadoAsistencia.Normalizar(asistencia);
     }
 
     public Asistencia Asistencia { get; }
     public DateTime Fecha { get; }
+    public bool EsAnteriorAlIngreso { get; }
     public bool Presente => EstadoSeleccionado == EstadoAsistencia.Presente;
     public string Estado => EstadoSeleccionado;
 

@@ -74,6 +74,8 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
         _ = ActualizarPanelAsync();
     }
 
+    public Task ActualizarAsync() => ActualizarPanelAsync();
+
     private static Task AbrirDetalleAsync(int legajo)
     {
         return Shell.Current.GoToAsync(
@@ -82,19 +84,20 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
 
     private async Task ActualizarPanelAsync()
     {
-        var totalClases = await _databaseService.GetTotalClasesAsync();
+        var estudiantes = await _databaseService.GetEstudiantesAsync();
+        var fechasClase = await _databaseService.GetFechasClaseAsync();
         var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
         var asistencias = await _databaseService.GetAsistenciasAsync();
         var entregas = await _databaseService.GetEntregasAsync();
         var contactos = await _databaseService.GetUltimosContactosAsync();
         Estudiantes.Clear();
 
-        foreach (var estudiante in EstudiantesViewModel.TodosLosEstudiantes
+        foreach (var estudiante in estudiantes
                      .Where(estudiante => estudiante.Comision == ComisionSeleccionada)
                       .Select(estudiante => new EstudianteRiesgoViewModel(
                           estudiante,
                           asistencias,
-                          totalClases,
+                          fechasClase,
                           trabajos,
                           entregas,
                            _configuracionRiesgoService,
@@ -133,7 +136,7 @@ public class EstudianteRiesgoViewModel
     public EstudianteRiesgoViewModel(
         Estudiante estudiante,
         IEnumerable<Asistencia> asistencias,
-        int totalClases,
+        IEnumerable<FechaClase> fechasClase,
         IEnumerable<TrabajoPractico> trabajos,
         IEnumerable<EntregaTrabajo> entregas,
         ConfiguracionRiesgoService configuracion,
@@ -142,7 +145,7 @@ public class EstudianteRiesgoViewModel
         var resultado = RiesgoEstudianteService.Calcular(
             estudiante,
             asistencias,
-            totalClases,
+            fechasClase,
             trabajos,
             entregas,
             configuracion);
@@ -153,8 +156,8 @@ public class EstudianteRiesgoViewModel
         Inasistencias = resultado.Inasistencias;
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
         PorcentajeEntregas = resultado.PorcentajeEntregas;
-        NivelRiesgo = resultado.Nivel.ToString();
-        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ToString();
+        NivelRiesgo = resultado.Nivel.ObtenerEtiqueta();
+        EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
         PuedeMostrarSeguimiento = resultado.RequiereContacto();
         UltimoContacto = PuedeMostrarSeguimiento ? ultimoContacto : null;
         MotivoRiesgo = resultado.Motivo;
@@ -162,7 +165,8 @@ public class EstudianteRiesgoViewModel
         {
             SeguimientoCursada.Services.NivelRiesgo.Alto => 3,
             SeguimientoCursada.Services.NivelRiesgo.Medio => 2,
-            _ => 1
+            SeguimientoCursada.Services.NivelRiesgo.Bajo => 1,
+            _ => 0
         };
     }
 
