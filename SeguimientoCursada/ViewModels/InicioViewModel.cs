@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.Maui.Controls;
@@ -18,7 +19,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     {
         _databaseService = databaseService;
         _configuracionRiesgoService = configuracionRiesgoService;
-        RegistrarPrimerAlumnoCommand = new Command(async () => await Shell.Current.GoToAsync("EstudiantesPage"));
+        RegistrarPrimerAlumnoCommand = new Command(async () => await IrAlAltaEstudianteAsync());
     }
 
     public bool HayEstudiantes
@@ -30,12 +31,14 @@ public sealed class InicioViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(MostrarEstadoVacio));
                 OnPropertyChanged(nameof(MostrarMetricas));
+                OnPropertyChanged(nameof(MostrarResumenPorComision));
             }
         }
     }
 
     public bool MostrarEstadoVacio => !HayEstudiantes;
     public bool MostrarMetricas => HayEstudiantes;
+    public bool MostrarResumenPorComision => HayEstudiantes && ResumenesPorComision.Count > 0;
     public bool EstaCargando { get => _estaCargando; private set => SetProperty(ref _estaCargando, value); }
     public string Mensaje { get => _mensaje; private set => SetProperty(ref _mensaje, value); }
 
@@ -47,6 +50,8 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     public decimal PromedioEntregas { get; private set; }
     public int Contactados { get; private set; }
     public int PendientesContacto { get; private set; }
+
+    public ObservableCollection<ResumenComisionViewModel> ResumenesPorComision { get; } = new();
 
     public Command RegistrarPrimerAlumnoCommand { get; }
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -71,30 +76,35 @@ public sealed class InicioViewModel : INotifyPropertyChanged
             var asistencias = await _databaseService.GetAsistenciasAsync();
             var entregas = await _databaseService.GetEntregasAsync();
             var contactos = await _databaseService.GetUltimosContactosAsync();
-            var resultados = estudiantes.Select(e => RiesgoEstudianteService.Calcular(e, asistencias, fechasClase, trabajos, entregas, _configuracionRiesgoService)).ToList();
 
-            EstudiantesOptimos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Optimo);
-            EstudiantesEnRiesgo = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.EnRiesgo);
-            EstudiantesCriticos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Critico);
-            EstudiantesSinDatos = resultados.Count(r => r.ObtenerEstadoSeguimiento() == EstadoSeguimiento.SinDatos);
-            var promediosAsistencia = resultados
-                .Where(resultado => !resultado.SinRegistrosAsistencia &&
-                                    resultado.TotalClasesConfiguradas > 0)
-                .Select(resultado => resultado.PorcentajeAsistencia)
+            var pares = estudiantes
+                .Select(estudiante => new ParEstudianteRiesgo(
+                    estudiante,
+                    RiesgoEstudianteService.Calcular(
+                        estudiante,
+                        asistencias,
+                        fechasClase,
+                        trabajos,
+                        entregas,
+                        _configuracionRiesgoService)))
                 .ToList();
-            PromedioAsistencia = promediosAsistencia.Count > 0
-                ? Math.Round(promediosAsistencia.Average(), 2)
-                : 0;
-            var promediosEntregas = resultados
-                .Where(resultado => resultado.TotalTrabajosObligatorios > 0)
-                .Select(resultado => resultado.PorcentajeEntregas)
-                .ToList();
-            PromedioEntregas = promediosEntregas.Count > 0
-                ? Math.Round(promediosEntregas.Average(), 2)
-                : 0;
-            var intervenibles = resultados.Where(r => r.RequiereContacto()).ToList();
-            Contactados = estudiantes.Zip(resultados).Count(pair => pair.Second.RequiereContacto() && contactos.Any(c => c.LegajoEstudiante == pair.First.Legajo));
+
+            var resultados = pares.Select(par => par.Resultado).ToList();
+            var metricas = CalcularMetricas(resultados);
+
+            EstudiantesOptimos = metricas.Optimos;
+            EstudiantesEnRiesgo = metricas.EnRiesgo;
+            EstudiantesCriticos = metricas.Criticos;
+            EstudiantesSinDatos = metricas.SinDatos;
+            PromedioAsistencia = metricas.PromedioAsistencia;
+            PromedioEntregas = metricas.PromedioEntregas;
+
+            var intervenibles = pares.Where(par => par.Resultado.RequiereContacto()).ToList();
+            Contactados = intervenibles.Count(par =>
+                contactos.Any(contacto => contacto.LegajoEstudiante == par.Estudiante.Legajo));
             PendientesContacto = intervenibles.Count - Contactados;
+
+            ActualizarResumenPorComision(pares);
             NotificarMetricas();
         }
         catch (Exception ex)
@@ -107,10 +117,95 @@ public sealed class InicioViewModel : INotifyPropertyChanged
         }
     }
 
+    private void ActualizarResumenPorComision(IReadOnlyList<ParEstudianteRiesgo> pares)
+    {
+        ResumenesPorComision.Clear();
+
+        foreach (var grupo in pares
+                     .GroupBy(par => string.IsNullOrWhiteSpace(par.Estudiante.Comision)
+                         ? "Sin comisión"
+                         : par.Estudiante.Comision.Trim())
+                     .OrderBy(grupo => grupo.Key, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var metricas = CalcularMetricas(grupo.Select(par => par.Resultado).ToList());
+
+            ResumenesPorComision.Add(new ResumenComisionViewModel(
+                grupo.Key,
+                metricas.Total,
+                metricas.Optimos,
+                metricas.EnRiesgo,
+                metricas.Criticos,
+                metricas.SinDatos,
+                metricas.PromedioAsistencia,
+                metricas.PromedioEntregas));
+        }
+
+        OnPropertyChanged(nameof(MostrarResumenPorComision));
+    }
+
+    private static MetricasRiesgo CalcularMetricas(IReadOnlyCollection<ResultadoRiesgo> resultados)
+    {
+        var promediosAsistencia = resultados
+            .Where(resultado => !resultado.SinRegistrosAsistencia &&
+                                resultado.TotalClasesConfiguradas > 0)
+            .Select(resultado => resultado.PorcentajeAsistencia)
+            .ToList();
+        var promediosEntregas = resultados
+            .Where(resultado => resultado.TotalTrabajosObligatorios > 0)
+            .Select(resultado => resultado.PorcentajeEntregas)
+            .ToList();
+
+        return new MetricasRiesgo(
+            resultados.Count,
+            resultados.Count(resultado => resultado.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Optimo),
+            resultados.Count(resultado => resultado.ObtenerEstadoSeguimiento() == EstadoSeguimiento.EnRiesgo),
+            resultados.Count(resultado => resultado.ObtenerEstadoSeguimiento() == EstadoSeguimiento.Critico),
+            resultados.Count(resultado => resultado.ObtenerEstadoSeguimiento() == EstadoSeguimiento.SinDatos),
+            promediosAsistencia.Count > 0 ? Math.Round(promediosAsistencia.Average(), 2) : 0,
+            promediosEntregas.Count > 0 ? Math.Round(promediosEntregas.Average(), 2) : 0);
+    }
+
+    private static async Task IrAlAltaEstudianteAsync()
+    {
+        if (Shell.Current is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Shell.Current.GoToAsync("//AltaEstudiantePage");
+            return;
+        }
+        catch (Exception)
+        {
+            // Se intenta con la ruta relativa como alternativa.
+        }
+
+        try
+        {
+            await Shell.Current.GoToAsync("AltaEstudiantePage");
+        }
+        catch (Exception ex)
+        {
+            var pagina = Application.Current?.Windows.FirstOrDefault()?.Page;
+
+            if (pagina is not null)
+            {
+                await pagina.DisplayAlertAsync(
+                    "No se pudo abrir el alta",
+                    $"No se pudo navegar a la pantalla de alta de estudiantes: {ex.Message}",
+                    "OK");
+            }
+        }
+    }
+
     private void ReiniciarMetricas()
     {
         EstudiantesOptimos = EstudiantesEnRiesgo = EstudiantesCriticos = EstudiantesSinDatos = Contactados = PendientesContacto = 0;
         PromedioAsistencia = PromedioEntregas = 0;
+        ResumenesPorComision.Clear();
+        OnPropertyChanged(nameof(MostrarResumenPorComision));
         NotificarMetricas();
     }
 
@@ -135,4 +230,15 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private sealed record ParEstudianteRiesgo(Estudiante Estudiante, ResultadoRiesgo Resultado);
+
+    private sealed record MetricasRiesgo(
+        int Total,
+        int Optimos,
+        int EnRiesgo,
+        int Criticos,
+        int SinDatos,
+        decimal PromedioAsistencia,
+        decimal PromedioEntregas);
 }

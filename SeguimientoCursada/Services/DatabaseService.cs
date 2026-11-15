@@ -108,6 +108,193 @@ public sealed class DatabaseService
         return await _database.DeleteAsync(estudiante);
     }
 
+    /// <summary>
+    /// Actualiza los datos de un estudiante. Si cambia el legajo (clave primaria),
+    /// migra asistencias, entregas y contactos al nuevo legajo dentro de una transacción.
+    /// Devuelve true si se actualizó correctamente.
+    /// </summary>
+    public async Task<bool> ActualizarEstudianteAsync(Estudiante original, Estudiante actualizado)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(actualizado);
+        await InitializeAsync();
+
+        actualizado.Apellido = actualizado.Apellido.Trim();
+        actualizado.Nombre = actualizado.Nombre.Trim();
+        actualizado.Comision = (actualizado.Comision ?? string.Empty).Trim();
+
+        if (original.Legajo == actualizado.Legajo)
+        {
+            return await _database.UpdateAsync(actualizado) > 0;
+        }
+
+        var existente = await _database.Table<Estudiante>()
+            .FirstOrDefaultAsync(estudiante => estudiante.Legajo == actualizado.Legajo);
+
+        if (existente is not null)
+        {
+            throw new InvalidOperationException($"El legajo {actualizado.Legajo} ya está registrado.");
+        }
+
+        var legajoAnterior = original.Legajo;
+        var legajoNuevo = actualizado.Legajo;
+
+        await _database.RunInTransactionAsync(conexion =>
+        {
+            conexion.Insert(actualizado);
+            conexion.Execute(
+                "UPDATE Asistencia SET LegajoEstudiante = ? WHERE LegajoEstudiante = ?",
+                legajoNuevo,
+                legajoAnterior);
+            conexion.Execute(
+                "UPDATE EntregaTrabajo SET LegajoEstudiante = ? WHERE LegajoEstudiante = ?",
+                legajoNuevo,
+                legajoAnterior);
+            conexion.Execute(
+                "UPDATE ContactoEstudiante SET LegajoEstudiante = ? WHERE LegajoEstudiante = ?",
+                legajoNuevo,
+                legajoAnterior);
+            conexion.Delete(original);
+        });
+
+        return true;
+    }
+
+    /// <summary>
+    /// Elimina un estudiante junto con sus asistencias, entregas y contactos en una
+    /// única transacción.
+    /// </summary>
+    public async Task<int> DeleteEstudianteConDependenciasAsync(Estudiante estudiante)
+    {
+        ArgumentNullException.ThrowIfNull(estudiante);
+        await InitializeAsync();
+
+        var legajo = estudiante.Legajo;
+        var asistencias = await _database.Table<Asistencia>()
+            .Where(asistencia => asistencia.LegajoEstudiante == legajo)
+            .ToListAsync();
+        var entregas = await _database.Table<EntregaTrabajo>()
+            .Where(entrega => entrega.LegajoEstudiante == legajo)
+            .ToListAsync();
+        var contactos = await _database.Table<ContactoEstudiante>()
+            .Where(contacto => contacto.LegajoEstudiante == legajo)
+            .ToListAsync();
+
+        await _database.RunInTransactionAsync(conexion =>
+        {
+            foreach (var asistencia in asistencias)
+            {
+                conexion.Delete(asistencia);
+            }
+
+            foreach (var entrega in entregas)
+            {
+                conexion.Delete(entrega);
+            }
+
+            foreach (var contacto in contactos)
+            {
+                conexion.Delete(contacto);
+            }
+
+            conexion.Delete(estudiante);
+        });
+
+        return 1 + asistencias.Count + entregas.Count + contactos.Count;
+    }
+
+    /// <summary>
+    /// Elimina todos los estudiantes y sus datos asociados (asistencias, entregas y
+    /// contactos). Conserva el calendario de clases y los trabajos prácticos.
+    /// Devuelve la cantidad de estudiantes eliminados.
+    /// </summary>
+    public async Task<int> EliminarTodosLosEstudiantesAsync()
+    {
+        await InitializeAsync();
+
+        var estudiantes = await _database.Table<Estudiante>().ToListAsync();
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+        var entregas = await _database.Table<EntregaTrabajo>().ToListAsync();
+        var contactos = await _database.Table<ContactoEstudiante>().ToListAsync();
+
+        await _database.RunInTransactionAsync(conexion =>
+        {
+            foreach (var asistencia in asistencias)
+            {
+                conexion.Delete(asistencia);
+            }
+
+            foreach (var entrega in entregas)
+            {
+                conexion.Delete(entrega);
+            }
+
+            foreach (var contacto in contactos)
+            {
+                conexion.Delete(contacto);
+            }
+
+            foreach (var estudiante in estudiantes)
+            {
+                conexion.Delete(estudiante);
+            }
+        });
+
+        return estudiantes.Count;
+    }
+
+    /// <summary>
+    /// Restablece todos los datos de la aplicación: estudiantes, asistencias, fechas
+    /// de clase, trabajos prácticos, entregas y contactos. No modifica las preferencias.
+    /// Devuelve la cantidad de estudiantes eliminados.
+    /// </summary>
+    public async Task<int> ResetearTodosLosDatosAsync()
+    {
+        await InitializeAsync();
+
+        var estudiantes = await _database.Table<Estudiante>().ToListAsync();
+        var asistencias = await _database.Table<Asistencia>().ToListAsync();
+        var fechasClase = await _database.Table<FechaClase>().ToListAsync();
+        var trabajos = await _database.Table<TrabajoPractico>().ToListAsync();
+        var entregas = await _database.Table<EntregaTrabajo>().ToListAsync();
+        var contactos = await _database.Table<ContactoEstudiante>().ToListAsync();
+
+        await _database.RunInTransactionAsync(conexion =>
+        {
+            foreach (var asistencia in asistencias)
+            {
+                conexion.Delete(asistencia);
+            }
+
+            foreach (var fechaClase in fechasClase)
+            {
+                conexion.Delete(fechaClase);
+            }
+
+            foreach (var entrega in entregas)
+            {
+                conexion.Delete(entrega);
+            }
+
+            foreach (var trabajo in trabajos)
+            {
+                conexion.Delete(trabajo);
+            }
+
+            foreach (var contacto in contactos)
+            {
+                conexion.Delete(contacto);
+            }
+
+            foreach (var estudiante in estudiantes)
+            {
+                conexion.Delete(estudiante);
+            }
+        });
+
+        return estudiantes.Count;
+    }
+
     public async Task<List<Asistencia>> GetAsistenciasAsync()
     {
         await InitializeAsync();

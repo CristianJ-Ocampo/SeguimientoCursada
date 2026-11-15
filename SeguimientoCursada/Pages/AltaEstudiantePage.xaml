@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
+             x:Class="SeguimientoCursada.Pages.AltaEstudiantePage"
+             x:DataType="viewModels:AltaEstudianteViewModel"
+             Title="Alta de estudiantes">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="12">
+            <Label Text="Alta de estudiantes"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+
+            <Entry Placeholder="Legajo"
+                   Text="{Binding InputLegajo}"
+                   Keyboard="Numeric" />
+            <Entry Placeholder="Apellido"
+                   Text="{Binding Apellido}" />
+            <Entry Placeholder="Nombre"
+                   Text="{Binding Nombre}" />
+
+            <Picker Title="Seleccioná una comisión"
+                    ItemsSource="{Binding Comisiones}"
+                    SelectedItem="{Binding ComisionSeleccionada}" />
+
+            <HorizontalStackLayout Spacing="8">
+                <CheckBox IsChecked="{Binding SeIncorporoTarde}" />
+                <Label Text="Se incorporó después del inicio"
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <DatePicker Date="{Binding FechaIngresoSeleccionada}"
+                        MaximumDate="{Binding FechaMaximaIngreso}"
+                        Format="dd/MM/yyyy"
+                        IsVisible="{Binding MostrarSelectorFechaIngreso}" />
+
+            <Button Text="Agregar estudiante"
+                    Command="{Binding AgregarEstudianteCommand}"
+                    HorizontalOptions="Fill" />
+
+            <Button Text="Importar desde CSV"
+                    Command="{Binding ImportarCsvCommand}"
+                    HorizontalOptions="Fill" />
+
+            <Label Text="Formato: legajo;Apellido;Nombre;Fecha de ingreso (opcional). La cabecera es opcional."
+                   FontSize="12" />
+
+            <Label Text="{Binding MensajeValidacion}"
+                   TextColor="{Binding ColorMensaje}" />
+
+            <Button Text="Ir a la nómina de estudiantes"
+                    Command="{Binding VerNominaCommand}"
+                    HorizontalOptions="Fill"
+                    Margin="0,12,0,0" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

@@ -15,7 +15,8 @@
 
             <Border Stroke="LightGray"
                     StrokeThickness="1"
-                    Padding="16">
+                    Padding="16"
+                    IsVisible="{Binding MostrarDatosLectura}">
                 <Grid ColumnDefinitions="Auto,*"
                        RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="12"
@@ -41,6 +42,45 @@
                     <Label Grid.Row="7" Grid.Column="1" Text="{Binding EstadoSeguimiento}" />
                 </Grid>
             </Border>
+
+            <Border Stroke="LightGray"
+                    StrokeThickness="1"
+                    Padding="16"
+                    IsVisible="{Binding Editando}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Editar datos del estudiante" FontAttributes="Bold" />
+                    <Label Text="Legajo" />
+                    <Entry Text="{Binding LegajoEditable}"
+                           Keyboard="Numeric"
+                           Placeholder="Legajo" />
+                    <Label Text="Apellido" />
+                    <Entry Text="{Binding ApellidoEditable}"
+                           Placeholder="Apellido" />
+                    <Label Text="Nombre" />
+                    <Entry Text="{Binding NombreEditable}"
+                           Placeholder="Nombre" />
+                    <Label Text="Comisión" />
+                    <Picker ItemsSource="{Binding Comisiones}"
+                            SelectedItem="{Binding ComisionEditable}"
+                            Title="Seleccioná una comisión" />
+                    <HorizontalStackLayout Spacing="12">
+                        <Button Text="Guardar cambios"
+                                Command="{Binding GuardarCambiosCommand}" />
+                        <Button Text="Cancelar"
+                                Command="{Binding CancelarEdicionCommand}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <HorizontalStackLayout Spacing="12"
+                                   IsVisible="{Binding PuedeEditar}">
+                <Button Text="Editar datos"
+                        Command="{Binding EditarDatosCommand}" />
+                <Button Text="Eliminar estudiante"
+                        Command="{Binding EliminarEstudianteCommand}"
+                        BackgroundColor="#B00020"
+                        TextColor="White" />
+            </HorizontalStackLayout>
 
             <Border Stroke="LightGray"
                     StrokeThickness="1"

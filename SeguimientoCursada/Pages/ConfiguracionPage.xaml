@@ -43,8 +43,36 @@
                         HorizontalOptions="FillAndExpand" />
             </HorizontalStackLayout>
 
+            <Border Stroke="LightGray"
+                    StrokeThickness="1"
+                    Padding="16"
+                    Margin="0,12,0,0">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Mantenimiento de datos"
+                           Style="{StaticResource SubHeadline}"
+                           SemanticProperties.HeadingLevel="Level2" />
+                    <Label Text="Estas acciones eliminan datos de forma permanente. Usalas con cuidado." />
+
+                    <Button Text="Borrar todos los estudiantes"
+                            Command="{Binding BorrarEstudiantesCommand}"
+                            BackgroundColor="#B00020"
+                            TextColor="White" />
+                    <Label Text="Elimina estudiantes, asistencias, entregas y contactos. Conserva el calendario de clases y los trabajos prácticos."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <Button Text="Restablecer todos los datos"
+                            Command="{Binding RestablecerDatosCommand}"
+                            BackgroundColor="#B00020"
+                            TextColor="White" />
+                    <Label Text="Elimina estudiantes, asistencias, fechas de clase, trabajos prácticos, entregas y contactos. Conserva las preferencias."
+                           FontSize="12"
+                           TextColor="Gray" />
+                </VerticalStackLayout>
+            </Border>
+
             <Label Text="{Binding Mensaje}"
-                   TextColor="Green" />
+                   TextColor="{Binding ColorMensaje}" />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

@@ -25,6 +25,11 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     private string _resultadoContacto = string.Empty;
     private bool _cursaDesdeInicio = true;
     private DateTime _fechaIngresoSeleccionada = DateTime.Today;
+    private bool _editando;
+    private string _legajoEditable = string.Empty;
+    private string _apellidoEditable = string.Empty;
+    private string _nombreEditable = string.Empty;
+    private string _comisionEditable = string.Empty;
 
     public EstudianteDetalleViewModel(
         DatabaseService databaseService,
@@ -40,6 +45,10 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         RegistrarContactoCommand = new Command(async () => await RegistrarContactoAsync());
         GuardarFechaIngresoCommand = new Command(async () => await GuardarFechaIngresoAsync());
         CompletarRegistrosCommand = new Command(async () => await CompletarRegistrosAsync());
+        EditarDatosCommand = new Command(IniciarEdicion);
+        GuardarCambiosCommand = new Command(async () => await GuardarCambiosAsync());
+        CancelarEdicionCommand = new Command(CancelarEdicion);
+        EliminarEstudianteCommand = new Command(async () => await EliminarEstudianteAsync());
     }
 
     public Estudiante? Estudiante { get; private set; }
@@ -49,6 +58,8 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public ObservableCollection<EntregaTrabajoViewModel> TrabajosPracticos { get; } = new();
 
     public ObservableCollection<ContactoHistorialViewModel> Contactos { get; } = new();
+
+    public IReadOnlyList<string> Comisiones { get; } = new[] { "1° A", "1° B" };
 
     public IReadOnlyList<string> MediosContacto => ContactoEstudiante.MediosDisponibles;
 
@@ -121,6 +132,50 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public string Nombre => Estudiante?.Nombre ?? string.Empty;
 
     public string Comision => Estudiante?.Comision ?? string.Empty;
+
+    public bool Editando
+    {
+        get => _editando;
+        private set
+        {
+            if (SetProperty(ref _editando, value))
+            {
+                OnPropertyChanged(nameof(MostrarDatosLectura));
+                OnPropertyChanged(nameof(PuedeEditar));
+                OnPropertyChanged(nameof(PuedeEliminar));
+            }
+        }
+    }
+
+    public bool MostrarDatosLectura => !Editando && Estudiante is not null;
+
+    public bool PuedeEditar => Estudiante is not null && !Editando;
+
+    public bool PuedeEliminar => Estudiante is not null && !Editando;
+
+    public string LegajoEditable
+    {
+        get => _legajoEditable;
+        set => SetProperty(ref _legajoEditable, value ?? string.Empty);
+    }
+
+    public string ApellidoEditable
+    {
+        get => _apellidoEditable;
+        set => SetProperty(ref _apellidoEditable, value ?? string.Empty);
+    }
+
+    public string NombreEditable
+    {
+        get => _nombreEditable;
+        set => SetProperty(ref _nombreEditable, value ?? string.Empty);
+    }
+
+    public string ComisionEditable
+    {
+        get => _comisionEditable;
+        set => SetProperty(ref _comisionEditable, value ?? string.Empty);
+    }
 
     public DateTime? FechaIngreso => Estudiante?.FechaIngreso;
 
@@ -207,6 +262,14 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     public Command GuardarFechaIngresoCommand { get; }
 
     public Command CompletarRegistrosCommand { get; }
+
+    public Command EditarDatosCommand { get; }
+
+    public Command GuardarCambiosCommand { get; }
+
+    public Command CancelarEdicionCommand { get; }
+
+    public Command EliminarEstudianteCommand { get; }
 
     public bool EstaCargando
     {
@@ -403,6 +466,202 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         }
     }
 
+    private void IniciarEdicion()
+    {
+        if (Estudiante is null)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        LegajoEditable = Estudiante.Legajo.ToString(CultureInfo.InvariantCulture);
+        ApellidoEditable = Estudiante.Apellido;
+        NombreEditable = Estudiante.Nombre;
+        ComisionEditable = Estudiante.Comision;
+        Mensaje = string.Empty;
+        Editando = true;
+    }
+
+    private void CancelarEdicion()
+    {
+        Editando = false;
+        Mensaje = "Edición cancelada.";
+    }
+
+    private async Task GuardarCambiosAsync()
+    {
+        if (Estudiante is null)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        var legajoTexto = LegajoEditable.Trim();
+
+        if (string.IsNullOrWhiteSpace(legajoTexto) ||
+            !legajoTexto.All(char.IsDigit) ||
+            !int.TryParse(legajoTexto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var nuevoLegajo) ||
+            nuevoLegajo <= 0)
+        {
+            Mensaje = "El legajo debe ser un número mayor que cero.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ApellidoEditable))
+        {
+            Mensaje = "El apellido es obligatorio.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NombreEditable))
+        {
+            Mensaje = "El nombre es obligatorio.";
+            return;
+        }
+
+        if (!Comisiones.Contains(ComisionEditable))
+        {
+            Mensaje = "La comisión seleccionada no es válida.";
+            return;
+        }
+
+        var original = Estudiante;
+        var actualizado = new Estudiante
+        {
+            Legajo = nuevoLegajo,
+            Apellido = ApellidoEditable.Trim(),
+            Nombre = NombreEditable.Trim(),
+            Comision = ComisionEditable,
+            FechaIngreso = original.FechaIngreso
+        };
+
+        try
+        {
+            var guardado = await _databaseService.ActualizarEstudianteAsync(original, actualizado);
+
+            if (!guardado)
+            {
+                Mensaje = "No se pudieron guardar los cambios.";
+                return;
+            }
+
+            ActualizarColeccionesEnMemoria(nuevoLegajo, actualizado);
+
+            _legajo = nuevoLegajo;
+            Editando = false;
+            await CargarDatosAsync(_legajo);
+            Mensaje = "Datos del estudiante actualizados correctamente.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            Mensaje = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudieron guardar los cambios: {ex.Message}";
+        }
+    }
+
+    private async Task EliminarEstudianteAsync()
+    {
+        if (Estudiante is null)
+        {
+            Mensaje = "No se seleccionó un estudiante válido.";
+            return;
+        }
+
+        var pagina = Application.Current?.Windows.FirstOrDefault()?.Page;
+
+        if (pagina is null)
+        {
+            Mensaje = "No se pudo mostrar la confirmación.";
+            return;
+        }
+
+        try
+        {
+            var asistencias = (await _databaseService.GetAsistenciasPorLegajoAsync(Estudiante.Legajo)).Count;
+            var entregas = (await _databaseService.GetEntregasPorLegajoAsync(Estudiante.Legajo)).Count;
+            var contactos = (await _databaseService.GetContactosPorLegajoAsync(Estudiante.Legajo)).Count;
+
+            var confirmado = await pagina.DisplayAlertAsync(
+                "Eliminar estudiante",
+                $"Se eliminará a {Estudiante.Apellido}, {Estudiante.Nombre} (legajo {Estudiante.Legajo}) " +
+                $"junto con {asistencias} asistencia(s), {entregas} entrega(s) y {contactos} contacto(s). " +
+                "Esta acción no se puede deshacer. ¿Continuar?",
+                "Eliminar",
+                "Cancelar");
+
+            if (!confirmado)
+            {
+                Mensaje = "Eliminación cancelada.";
+                return;
+            }
+
+            var legajo = Estudiante.Legajo;
+            await _databaseService.DeleteEstudianteConDependenciasAsync(Estudiante);
+            QuitarDeColeccionesEnMemoria(legajo);
+            Estudiante = null;
+            Editando = false;
+            Mensaje = "Estudiante eliminado correctamente.";
+
+            if (Shell.Current is not null)
+            {
+                await Shell.Current.GoToAsync("..");
+            }
+        }
+        catch (Exception ex)
+        {
+            Mensaje = $"No se pudo eliminar el estudiante: {ex.Message}";
+        }
+    }
+
+    private void ActualizarColeccionesEnMemoria(int nuevoLegajo, Estudiante actualizado)
+    {
+        var enMemoria = EstudiantesViewModel.TodosLosEstudiantes
+            .FirstOrDefault(estudiante => estudiante.Legajo == _legajo);
+
+        if (enMemoria is not null)
+        {
+            EstudiantesViewModel.TodosLosEstudiantes.Remove(enMemoria);
+        }
+
+        if (!EstudiantesViewModel.TodosLosEstudiantes.Any(estudiante => estudiante.Legajo == nuevoLegajo))
+        {
+            EstudiantesViewModel.TodosLosEstudiantes.Add(actualizado);
+        }
+
+        if (nuevoLegajo == _legajo)
+        {
+            return;
+        }
+
+        foreach (var asistencia in AsistenciaViewModel.TodasLasAsistencias
+                     .Where(asistencia => asistencia.LegajoEstudiante == _legajo)
+                     .ToList())
+        {
+            asistencia.LegajoEstudiante = nuevoLegajo;
+        }
+    }
+
+    private static void QuitarDeColeccionesEnMemoria(int legajo)
+    {
+        var enMemoria = EstudiantesViewModel.TodosLosEstudiantes
+            .FirstOrDefault(estudiante => estudiante.Legajo == legajo);
+
+        if (enMemoria is not null)
+        {
+            EstudiantesViewModel.TodosLosEstudiantes.Remove(enMemoria);
+        }
+
+        foreach (var asistencia in AsistenciaViewModel.TodasLasAsistencias
+                     .Where(asistencia => asistencia.LegajoEstudiante == legajo)
+                     .ToList())
+        {
+            AsistenciaViewModel.TodasLasAsistencias.Remove(asistencia);
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public Task CargarAsync(int legajo)
@@ -439,6 +698,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
                 EstadoSeguimiento = "Sin datos";
                 PuedeRegistrarContacto = false;
                 MotivoRiesgo = string.Empty;
+                Editando = false;
                 Mensaje = $"No se encontró el estudiante con legajo {legajo}.";
                 NotificarDatos();
                 return;
@@ -447,6 +707,14 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             Estudiante = estudiante;
             CursaDesdeInicio = estudiante.FechaIngreso is null;
             FechaIngresoSeleccionada = estudiante.FechaIngreso ?? DateTime.Today;
+
+            if (!Editando)
+            {
+                LegajoEditable = estudiante.Legajo.ToString(CultureInfo.InvariantCulture);
+                ApellidoEditable = estudiante.Apellido;
+                NombreEditable = estudiante.Nombre;
+                ComisionEditable = estudiante.Comision;
+            }
 
             var asistencias = await _databaseService.GetAsistenciasPorLegajoAsync(_legajo);
             var fechaIngreso = estudiante.FechaIngreso?.Date;
@@ -504,6 +772,9 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
     private void NotificarDatos()
     {
         OnPropertyChanged(nameof(Estudiante));
+        OnPropertyChanged(nameof(MostrarDatosLectura));
+        OnPropertyChanged(nameof(PuedeEditar));
+        OnPropertyChanged(nameof(PuedeEliminar));
         OnPropertyChanged(nameof(Legajo));
         OnPropertyChanged(nameof(Apellido));
         OnPropertyChanged(nameof(Nombre));

@@ -57,6 +57,58 @@
                         <Label Text="{Binding PendientesContacto, StringFormat='Contactos pendientes: {0}'}" />
                     </VerticalStackLayout>
                 </Border>
+
+                <Label Text="Por comisión"
+                       Style="{StaticResource SubHeadline}"
+                       IsVisible="{Binding MostrarResumenPorComision}" />
+
+                <VerticalStackLayout Spacing="8"
+                                     IsVisible="{Binding MostrarResumenPorComision}"
+                                     BindableLayout.ItemsSource="{Binding ResumenesPorComision}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:ResumenComisionViewModel">
+                            <Border Padding="12" Stroke="LightGray">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="{Binding Comision}"
+                                               FontAttributes="Bold"
+                                               FontSize="16" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding TotalAlumnos, StringFormat='Alumnos: {0}'}"
+                                               TextColor="Gray"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                        <VerticalStackLayout>
+                                            <Label Text="Óptimos"
+                                                   FontAttributes="Bold"
+                                                   FontSize="12" />
+                                            <Label Text="{Binding EstudiantesOptimos}" FontSize="20" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="1">
+                                            <Label Text="En riesgo"
+                                                   FontAttributes="Bold"
+                                                   FontSize="12" />
+                                            <Label Text="{Binding EstudiantesEnRiesgo}" FontSize="20" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="2">
+                                            <Label Text="Críticos"
+                                                   FontAttributes="Bold"
+                                                   FontSize="12" />
+                                            <Label Text="{Binding EstudiantesCriticos}" FontSize="20" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+
+                                    <Label Text="{Binding EstudiantesSinDatos, StringFormat='Sin datos: {0}'}"
+                                           TextColor="Gray" />
+                                    <Label Text="{Binding PromedioAsistencia, StringFormat='Asistencia promedio: {0:0.##}%'}" />
+                                    <Label Text="{Binding PromedioEntregas, StringFormat='Entrega de TPs promedio: {0:0.##}%'}" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
             </VerticalStackLayout>
 
             <ActivityIndicator IsRunning="{Binding EstaCargando}"

@@ -33,6 +33,11 @@
         Route="EstudiantesPage" />
 
     <ShellContent
+        Title="Alta de estudiantes"
+        ContentTemplate="{DataTemplate pages:AltaEstudiantePage}"
+        Route="AltaEstudiantePage" />
+
+    <ShellContent
         Title="Asistencia"
         ContentTemplate="{DataTemplate pages:AsistenciaPage}"
         Route="AsistenciaPage" />

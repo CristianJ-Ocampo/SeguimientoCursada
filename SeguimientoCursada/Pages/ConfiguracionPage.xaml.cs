@@ -12,6 +12,9 @@ public partial class ConfiguracionPage : ContentPage
         var configuracion = Application.Current?.Handler?.MauiContext?.Services
             .GetRequiredService<ConfiguracionRiesgoService>()
             ?? throw new InvalidOperationException("ConfiguracionRiesgoService no está disponible.");
-        BindingContext = new ConfiguracionViewModel(configuracion);
+        var databaseService = Application.Current?.Handler?.MauiContext?.Services
+            .GetRequiredService<DatabaseService>()
+            ?? throw new InvalidOperationException("DatabaseService no está disponible.");
+        BindingContext = new ConfiguracionViewModel(configuracion, databaseService);
     }
 }

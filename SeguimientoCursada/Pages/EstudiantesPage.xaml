@@ -7,104 +7,77 @@
              x:Name="EstudiantesPageRoot"
              x:DataType="viewModels:EstudiantesViewModel"
              Title="Estudiantes">
-    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="12">
-            <Label Text="Alta de estudiantes"
-                   Grid.Row="0"
+    <Grid Padding="24"
+          RowDefinitions="Auto,Auto,Auto,*"
+          RowSpacing="12">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <Label Text="Nómina de estudiantes"
                    Style="{StaticResource Headline}"
                    SemanticProperties.HeadingLevel="Level1" />
+            <Label Grid.Column="1"
+                   Text="{Binding CantidadEstudiantes, StringFormat='Total: {0}'}"
+                   VerticalOptions="Center" />
+        </Grid>
 
-            <Entry Placeholder="Legajo"
-                   Grid.Row="1"
-                   Text="{Binding InputLegajo}"
-                   Keyboard="Numeric" />
-            <Entry Placeholder="Apellido"
-                   Grid.Row="2"
-                   Text="{Binding Apellido}" />
-            <Entry Placeholder="Nombre"
-                   Grid.Row="3"
-                   Text="{Binding Nombre}" />
-
-            <Picker Grid.Row="4"
-                    Title="Seleccioná una comisión"
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <Picker Title="Seleccioná una comisión"
                     ItemsSource="{Binding Comisiones}"
-                    SelectedItem="{Binding ComisionSeleccionada}" />
+                    SelectedItem="{Binding ComisionSeleccionada}"
+                    VerticalOptions="Center" />
+            <Button Grid.Column="1"
+                    Text="Alta de estudiantes"
+                    Command="{Binding IrAlAltaCommand}" />
+        </Grid>
 
-            <HorizontalStackLayout Grid.Row="5" Spacing="8">
-                <CheckBox IsChecked="{Binding SeIncorporoTarde}" />
-                <Label Text="Se incorporó después del inicio"
-                       VerticalOptions="Center" />
-            </HorizontalStackLayout>
+        <Label Grid.Row="2"
+               Text="{Binding MensajeError}"
+               TextColor="Red"
+               IsVisible="{Binding TieneMensajeError}" />
 
-            <DatePicker Grid.Row="6"
-                        Date="{Binding FechaIngresoSeleccionada}"
-                        MaximumDate="{Binding FechaMaximaIngreso}"
-                        Format="dd/MM/yyyy"
-                        IsVisible="{Binding MostrarSelectorFechaIngreso}" />
-
-            <Button Text="Agregar estudiante"
-                    Grid.Row="7"
-                    Command="{Binding AgregarEstudianteCommand}"
-                    HorizontalOptions="Fill" />
-
-            <Button Text="Importar desde CSV"
-                    Grid.Row="8"
-                    Command="{Binding ImportarCsvCommand}"
-                    HorizontalOptions="Fill" />
-
-            <Label Text="Formato: legajo;Apellido;Nombre;Fecha de ingreso (opcional). La cabecera es opcional."
-                   Grid.Row="9"
-                   FontSize="12" />
-
-            <Label Text="{Binding MensajeValidacion}"
-                   TextColor="Red"
-                   Grid.Row="10" />
-
-            <Grid Grid.Row="11" RowDefinitions="Auto,*" RowSpacing="8">
-                <Grid ColumnDefinitions="*,Auto">
-                    <Label Text="Nómina de estudiantes"
-                           Style="{StaticResource SubHeadline}"
-                           SemanticProperties.HeadingLevel="Level2" />
-                    <Label Grid.Column="1"
-                           Text="{Binding CantidadEstudiantes, StringFormat='Total: {0}'}"
-                           VerticalOptions="Center" />
-                </Grid>
-
-                <CollectionView Grid.Row="1"
-                                ItemsSource="{Binding EstudiantesFiltrados}"
-                                EmptyView="{Binding MensajeNominaVacia}">
-                    <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="viewModels:EstudianteListadoViewModel">
-                            <Border Stroke="LightGray"
-                                    StrokeThickness="1"
-                                    Padding="12"
-                                    Margin="0,0,0,8">
-                                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto"
-                                      RowDefinitions="Auto,Auto,Auto">
-                                    <Label Grid.Row="0" Grid.Column="0" Text="Legajo:" FontAttributes="Bold" />
-                                    <Label Grid.Row="0" Grid.Column="1" Text="{Binding Legajo}" Margin="8,0,16,0" />
-                                    <Label Grid.Row="0" Grid.Column="2" Text="Comisión:" FontAttributes="Bold" />
-                                    <Label Grid.Row="0" Grid.Column="3" Text="{Binding Comision}" Margin="8,0,0,0" />
-                                    <Label Grid.Row="1" Grid.Column="0" Text="Apellido:" FontAttributes="Bold" />
-                                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Apellido}" Margin="8,0,16,0" />
-                                    <Label Grid.Row="1" Grid.Column="2" Text="Nombre:" FontAttributes="Bold" />
-                                    <Label Grid.Row="1" Grid.Column="3" Text="{Binding Nombre}" Margin="8,0,0,0" />
-                                    <Label Grid.Row="2" Grid.ColumnSpan="4"
-                                           Text="{Binding TextoSeguimiento}"
-                                           TextColor="{Binding ColorSeguimiento}"
-                                           FontAttributes="Bold"
-                                           Margin="0,8,0,0"
-                                           IsVisible="{Binding PuedeMostrarSeguimiento}" />
-                                    <Button Grid.RowSpan="3"
-                                            Grid.Column="4"
-                                            Text="Ver ficha"
-                                            Command="{Binding Source={x:Reference EstudiantesPageRoot}, Path=BindingContext.AbrirDetalleCommand}"
-                                            CommandParameter="{Binding Legajo}"
-                                            VerticalOptions="Center" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </Grid>
+        <CollectionView Grid.Row="3"
+                        ItemsSource="{Binding EstudiantesFiltrados}">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout Padding="24"
+                                     Spacing="12"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding Source={x:Reference EstudiantesPageRoot}, Path=BindingContext.MensajeNominaVacia}"
+                           HorizontalTextAlignment="Center" />
+                    <Button Text="Registrar primer alumno"
+                            Command="{Binding Source={x:Reference EstudiantesPageRoot}, Path=BindingContext.IrAlAltaCommand}" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:EstudianteListadoViewModel">
+                    <Border Stroke="LightGray"
+                            StrokeThickness="1"
+                            Padding="12"
+                            Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto"
+                              RowDefinitions="Auto,Auto,Auto">
+                            <Label Grid.Row="0" Grid.Column="0" Text="Legajo:" FontAttributes="Bold" />
+                            <Label Grid.Row="0" Grid.Column="1" Text="{Binding Legajo}" Margin="8,0,16,0" />
+                            <Label Grid.Row="0" Grid.Column="2" Text="Comisión:" FontAttributes="Bold" />
+                            <Label Grid.Row="0" Grid.Column="3" Text="{Binding Comision}" Margin="8,0,0,0" />
+                            <Label Grid.Row="1" Grid.Column="0" Text="Apellido:" FontAttributes="Bold" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="{Binding Apellido}" Margin="8,0,16,0" />
+                            <Label Grid.Row="1" Grid.Column="2" Text="Nombre:" FontAttributes="Bold" />
+                            <Label Grid.Row="1" Grid.Column="3" Text="{Binding Nombre}" Margin="8,0,0,0" />
+                            <Label Grid.Row="2" Grid.ColumnSpan="4"
+                                   Text="{Binding TextoSeguimiento}"
+                                   TextColor="{Binding ColorSeguimiento}"
+                                   FontAttributes="Bold"
+                                   Margin="0,8,0,0"
+                                   IsVisible="{Binding PuedeMostrarSeguimiento}" />
+                            <Button Grid.RowSpan="3"
+                                    Grid.Column="4"
+                                    Text="Ver ficha"
+                                    Command="{Binding Source={x:Reference EstudiantesPageRoot}, Path=BindingContext.AbrirDetalleCommand}"
+                                    CommandParameter="{Binding Legajo}"
+                                    VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
     </Grid>
 </ContentPage>
