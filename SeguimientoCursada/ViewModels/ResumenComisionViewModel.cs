@@ -34,6 +34,10 @@ public sealed class ResumenComisionViewModel
 
     public int EstudiantesSinDatos { get; }
 
+    public int TotalConDatos => EstudiantesOptimos + EstudiantesEnRiesgo + EstudiantesCriticos;
+
+    public bool TieneDatos => TotalConDatos > 0;
+
     public decimal PromedioAsistencia { get; }
 
     public decimal PromedioEntregas { get; }

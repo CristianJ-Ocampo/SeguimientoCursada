@@ -50,14 +50,21 @@ public static class ResultadoRiesgoExtensions
 
     public static string ObtenerEtiqueta(this NivelRiesgo nivel) => nivel switch
     {
+        NivelRiesgo.Bajo => "Óptimo",
+        NivelRiesgo.Medio => "Moderado",
+        NivelRiesgo.Alto => "Crítico",
         NivelRiesgo.SinDatos => "Sin datos",
-        _ => nivel.ToString()
+        _ => "Sin datos"
     };
 
     public static string ObtenerEtiqueta(this EstadoSeguimiento estado) => estado switch
     {
+        EstadoSeguimiento.Optimo => "Óptimo",
+        EstadoSeguimiento.Regular => "Regular",
+        EstadoSeguimiento.EnRiesgo => "Moderado",
+        EstadoSeguimiento.Critico => "Crítico",
         EstadoSeguimiento.SinDatos => "Sin datos",
-        _ => estado.ToString()
+        _ => "Sin datos"
     };
 }
 
@@ -87,6 +94,20 @@ public static class RiesgoEstudianteService
         };
 
         return new ResultadoRiesgo(nivel, inasistencias, motivo);
+    }
+
+    /// <summary>
+    /// Un trabajo práctico cuenta para el alumno si no venció antes de su ingreso.
+    /// Los trabajos sin vencimiento se consideran aplicables siempre.
+    /// </summary>
+    public static bool AplicaAlIngreso(TrabajoPractico trabajo, DateTime? fechaIngreso)
+    {
+        if (trabajo.FechaVencimiento is null || fechaIngreso is null)
+        {
+            return true;
+        }
+
+        return trabajo.FechaVencimiento.Value.Date >= fechaIngreso.Value.Date;
     }
 
     public static ResultadoRiesgo Calcular(
@@ -142,8 +163,8 @@ public static class RiesgoEstudianteService
             : 0m;
 
         var trabajos = trabajosObligatorios
-            .Where(trabajo => trabajo.Obligatorio &&
-                              trabajo.Activo &&
+            .Where(trabajo => trabajo.Activo &&
+                              AplicaAlIngreso(trabajo, fechaIngreso) &&
                               (string.IsNullOrWhiteSpace(trabajo.Comision) ||
                                string.Equals(
                                    trabajo.Comision,

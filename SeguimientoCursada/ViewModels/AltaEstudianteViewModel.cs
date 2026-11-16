@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Graphics;
+using SeguimientoCursada.Controls;
 using SeguimientoCursada.Models;
 using SeguimientoCursada.Services;
 
@@ -171,13 +172,25 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
             return;
         }
 
+        var fechaIngreso = SeIncorporoTarde
+            ? FechaIngresoSeleccionada.Date
+            : await ObtenerFechaIngresoDesdeInicioAsync();
+
+        if (fechaIngreso is null)
+        {
+            MostrarMensaje(
+                "El alta se canceló porque no se indicó la fecha de la primera clase.",
+                esError: true);
+            return;
+        }
+
         var estudiante = new Estudiante
         {
             Legajo = legajo,
             Apellido = Apellido.Trim(),
             Nombre = Nombre.Trim(),
             Comision = ComisionSeleccionada,
-            FechaIngreso = SeIncorporoTarde ? FechaIngresoSeleccionada.Date : null
+            FechaIngreso = fechaIngreso
         };
 
         try
@@ -197,12 +210,72 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
             EstudiantesViewModel.TodosLosEstudiantes.Add(estudiante);
         }
 
+        var asistenciasCreadas = new List<Asistencia>();
+        var mensaje = $"Se agregó a {estudiante.Apellido}, {estudiante.Nombre} en {estudiante.Comision}.";
+        var huboErrorAsistencias = false;
+
+        try
+        {
+            asistenciasCreadas = await _databaseService.CrearAsistenciasInicialesAsync(legajo);
+
+            foreach (var asistencia in asistenciasCreadas)
+            {
+                if (!AsistenciaViewModel.TodasLasAsistencias.Any(
+                        existente => existente.Id == asistencia.Id))
+                {
+                    AsistenciaViewModel.TodasLasAsistencias.Add(asistencia);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            huboErrorAsistencias = true;
+            mensaje += $" No se pudieron crear los registros de asistencia: {ex.Message}";
+        }
+
         InputLegajo = string.Empty;
         Apellido = string.Empty;
         Nombre = string.Empty;
         SeIncorporoTarde = false;
         FechaIngresoSeleccionada = DateTime.Today;
-        MostrarMensaje($"Se agregó a {estudiante.Apellido}, {estudiante.Nombre} en {estudiante.Comision}.");
+        MostrarMensaje(mensaje, esError: huboErrorAsistencias);
+
+        if (asistenciasCreadas.Count > 0)
+        {
+            await MostrarAlertaAsync(
+                "Actualice el presentismo del alumno para las clases ya dictadas si es necesario");
+        }
+    }
+
+    /// <summary>
+    /// Para un alumno que cursó desde el inicio, devuelve la primera fecha de
+    /// clase de la comisión. Si todavía no hay clases cargadas, pide confirmar
+    /// la fecha de la primera clase y la crea en el calendario.
+    /// </summary>
+    private async Task<DateTime?> ObtenerFechaIngresoDesdeInicioAsync()
+    {
+        var primeraClase = await _databaseService.GetPrimeraFechaClaseAsync(ComisionSeleccionada);
+
+        if (primeraClase is not null)
+        {
+            return primeraClase;
+        }
+
+        var fechaConfirmada = await DialogoFecha.MostrarAsync(ComisionSeleccionada);
+
+        if (fechaConfirmada is null)
+        {
+            return null;
+        }
+
+        await _databaseService.SaveFechaClaseAsync(new FechaClase
+        {
+            Fecha = fechaConfirmada.Value.Date,
+            Comision = ComisionSeleccionada.Trim(),
+            EsDiaClase = true
+        });
+
+        return fechaConfirmada.Value.Date;
     }
 
     private async Task ImportarCsvAsync()
@@ -298,11 +371,11 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
 
             if (resultado.FilasOmitidas == 1)
             {
-                mensaje += "\nSe omitió 1 fila por datos inválidos o legajos repetidos.";
+                mensaje += "\nSe omitió 1 fila por datos inválidos, fechas futuras o legajos repetidos.";
             }
             else if (resultado.FilasOmitidas > 1)
             {
-                mensaje += $"\nSe omitieron {resultado.FilasOmitidas} filas por datos inválidos o legajos repetidos.";
+                mensaje += $"\nSe omitieron {resultado.FilasOmitidas} filas por datos inválidos, fechas futuras o legajos repetidos.";
             }
 
             MostrarMensaje(mensaje);
@@ -341,6 +414,7 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
         var resultado = new ResultadoImportacionCsv();
         var legajosArchivo = new HashSet<int>();
         var primeraLinea = true;
+        var primeraClaseComision = await _databaseService.GetPrimeraFechaClaseAsync(comision);
 
         foreach (var linea in lineas)
         {
@@ -384,7 +458,7 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
                 continue;
             }
 
-            DateTime? fechaIngreso = null;
+            DateTime? fechaIngreso = primeraClaseComision;
 
             if (campos.Count >= 4 && !string.IsNullOrWhiteSpace(campos[3]))
             {
@@ -394,7 +468,15 @@ public class AltaEstudianteViewModel : INotifyPropertyChanged
                     continue;
                 }
 
-                fechaIngreso = fecha.Date;
+                fecha = fecha.Date;
+
+                if (fecha > DateTime.Today)
+                {
+                    resultado.FilasOmitidas++;
+                    continue;
+                }
+
+                fechaIngreso = fecha;
             }
 
             if (_legajosExistentes.Contains(legajo) ||

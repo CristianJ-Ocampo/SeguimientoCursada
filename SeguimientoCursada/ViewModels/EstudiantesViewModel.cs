@@ -108,7 +108,7 @@ public class EstudiantesViewModel : INotifyPropertyChanged
             var estudiantes = await _databaseService.GetEstudiantesAsync();
             var contactos = await _databaseService.GetUltimosContactosAsync();
             var fechasClase = await _databaseService.GetFechasClaseAsync();
-            var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+            var trabajos = await _databaseService.GetTrabajosPracticosAsync();
             var asistencias = await _databaseService.GetAsistenciasAsync();
             var entregas = await _databaseService.GetEntregasAsync();
 

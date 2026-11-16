@@ -18,7 +18,7 @@
                     Padding="16"
                     IsVisible="{Binding MostrarDatosLectura}">
                 <Grid ColumnDefinitions="Auto,*"
-                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="12"
                       RowSpacing="8">
                     <Label Grid.Row="0" Text="Apellido:" FontAttributes="Bold" />
@@ -38,8 +38,6 @@
                            TextColor="{Binding ColorNivelRiesgo}" />
                     <Label Grid.Row="6" Text="Detalle:" FontAttributes="Bold" />
                     <Label Grid.Row="6" Grid.Column="1" Text="{Binding MotivoRiesgo}" />
-                    <Label Grid.Row="7" Text="Estado:" FontAttributes="Bold" />
-                    <Label Grid.Row="7" Grid.Column="1" Text="{Binding EstadoSeguimiento}" />
                 </Grid>
             </Border>
 
@@ -92,6 +90,10 @@
                         <Label Text="Cursó desde el inicio"
                                VerticalOptions="Center" />
                     </HorizontalStackLayout>
+                    <Label Text="{Binding PrimeraFechaClaseTexto}"
+                           IsVisible="{Binding CursaDesdeInicio}"
+                           FontSize="12"
+                           TextColor="Gray" />
                     <DatePicker Date="{Binding FechaIngresoSeleccionada}"
                                 MaximumDate="{Binding FechaMaximaIngreso}"
                                 Format="dd/MM/yyyy"
@@ -128,9 +130,8 @@
                     <Label Text="{Binding PorcentajeAsistencia, StringFormat='Asistencia: {0:0.##}%'}" />
                     <Label Text="{Binding ClasesAsistidas, StringFormat='Clases asistidas o justificadas: {0}'}" />
                     <Label Text="{Binding TotalClasesConfiguradas, StringFormat='Total de días de clase configurados: {0}'}" />
-                    <Label Text="{Binding PorcentajeEntregas, StringFormat='Entregas de TPs obligatorios: {0:0.##}%'}" />
-                    <Label Text="{Binding TrabajosEntregados, StringFormat='TPs entregados: {0}'}" />
-                    <Label Text="{Binding TotalTrabajosObligatorios, StringFormat='TPs obligatorios: {0}'}" />
+                    <Label Text="{Binding PorcentajeEntregas, StringFormat='Entregas de trabajos prácticos: {0:0.##}%'}" />
+                    <Label Text="{Binding ResumenEntregas}" />
                 </VerticalStackLayout>
             </Border>
 
@@ -172,14 +173,14 @@
             <Button Text="Completar registros faltantes"
                     Command="{Binding CompletarRegistrosCommand}" />
 
-            <Label Text="Trabajos prácticos obligatorios"
+            <Label Text="Trabajos prácticos"
                    Style="{StaticResource SubHeadline}"
                    SemanticProperties.HeadingLevel="Level2" />
 
             <CollectionView ItemsSource="{Binding TrabajosPracticos}"
                             HeightRequest="300"
                             SelectionMode="None"
-                            EmptyView="No hay trabajos prácticos obligatorios configurados.">
+                            EmptyView="No hay trabajos prácticos configurados.">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="viewModels:EntregaTrabajoViewModel">
                         <Grid Padding="12"
@@ -190,6 +191,9 @@
                                        FontAttributes="Bold" />
                                 <Label Text="{Binding Descripcion}"
                                        IsVisible="{Binding TieneDescripcion}" />
+                                <Label Text="{Binding VencimientoMostrado}"
+                                       TextColor="Gray"
+                                       FontSize="12" />
                             </VerticalStackLayout>
                             <HorizontalStackLayout Grid.Column="1"
                                                    Spacing="8"

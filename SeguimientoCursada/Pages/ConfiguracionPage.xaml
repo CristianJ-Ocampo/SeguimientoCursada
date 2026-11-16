@@ -28,7 +28,7 @@
             </VerticalStackLayout>
 
             <VerticalStackLayout Spacing="4">
-                <Label Text="Entregas mínimas de TPs obligatorios (%)" />
+                <Label Text="Entregas mínimas de trabajos prácticos (%)" />
                 <Entry Keyboard="Numeric"
                        Text="{Binding EntregasMinimas}" />
                 <Label Text="Por debajo de este valor las entregas generan riesgo." />

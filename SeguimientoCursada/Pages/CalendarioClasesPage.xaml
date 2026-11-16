@@ -61,7 +61,7 @@
                                     <Label Text="{Binding Fecha, StringFormat='{0:dd/MM/yyyy}'}"
                                            FontAttributes="Bold" />
                                     <Label Text="{Binding ComisionMostrada}"
-                                           TextColor="DarkBlue" />
+                                           TextColor="{AppThemeBinding Light=DarkBlue, Dark=White}" />
                                     <Label Text="{Binding Descripcion}"
                                            IsVisible="{Binding TieneDescripcion}" />
                                     <Label Text="Día de cursada"

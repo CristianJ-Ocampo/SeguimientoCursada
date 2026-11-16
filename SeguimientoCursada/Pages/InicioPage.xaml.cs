@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using SeguimientoCursada.Controls;
 using SeguimientoCursada.Services;
 using SeguimientoCursada.ViewModels;
 
@@ -23,5 +24,14 @@ public partial class InicioPage : ContentPage
     {
         base.OnAppearing();
         await _viewModel.CargarAsync();
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), AnimarGraficos);
+    }
+
+    private void AnimarGraficos()
+    {
+        foreach (var grafico in this.GetVisualTreeDescendants().OfType<RiesgoDonutChart>())
+        {
+            grafico.ReproducirAnimacion();
+        }
     }
 }

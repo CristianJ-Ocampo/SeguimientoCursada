@@ -43,8 +43,10 @@ public sealed class DatabaseService
             await MigrarEstadosAsistenciaAsync();
             await MigrarContactosAsync();
             await MigrarComisionTrabajosPracticosAsync();
+            await MigrarVencimientoTrabajosPracticosAsync();
             await MigrarComisionFechasClaseAsync();
             await MigrarFechaIngresoEstudiantesAsync();
+            await CompletarFechasIngresoDesdeClasesAsync();
             await LimpiarAsistenciasHuerfanasAsync();
             await RepararAsistenciasFaltantesAsync();
             _initialized = true;
@@ -416,12 +418,112 @@ public sealed class DatabaseService
             .ToList();
     }
 
+    /// <summary>
+    /// Crea los registros de asistencia iniciales de un alumno recién dado de alta en
+    /// las clases ya dictadas (fechas anteriores a hoy) que correspondan a su comisión
+    /// y que no sean anteriores a su fecha de ingreso. Los registros se crean como
+    /// Ausente para que el presentismo pueda actualizarse luego.
+    /// Devuelve las asistencias creadas.
+    /// </summary>
+    public async Task<List<Asistencia>> CrearAsistenciasInicialesAsync(int legajo)
+    {
+        await InitializeAsync();
+
+        var estudiante = await _database.Table<Estudiante>()
+            .FirstOrDefaultAsync(estudiante => estudiante.Legajo == legajo);
+
+        if (estudiante is null)
+        {
+            return new List<Asistencia>();
+        }
+
+        var fechasClase = await _database.Table<FechaClase>()
+            .Where(fecha => fecha.EsDiaClase)
+            .ToListAsync();
+
+        var asistencias = await _database.Table<Asistencia>()
+            .Where(asistencia => asistencia.LegajoEstudiante == legajo)
+            .ToListAsync();
+
+        var comisionEstudiante = (estudiante.Comision ?? string.Empty).Trim();
+        var fechaIngreso = estudiante.FechaIngreso?.Date;
+        var hoy = DateTime.Today;
+        var creadas = new List<Asistencia>();
+
+        foreach (var fechaClase in fechasClase)
+        {
+            var fecha = fechaClase.Fecha.Date;
+
+            // Solo clases ya dictadas: la clase de hoy todavía puede estar pendiente.
+            if (fecha >= hoy)
+            {
+                continue;
+            }
+
+            if (fechaIngreso is not null && fecha < fechaIngreso)
+            {
+                continue;
+            }
+
+            var comisionClase = (fechaClase.Comision ?? string.Empty).Trim();
+
+            if (!string.IsNullOrEmpty(comisionClase) &&
+                !string.Equals(comisionClase, comisionEstudiante, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var comisionRegistro = string.IsNullOrEmpty(comisionClase)
+                ? comisionEstudiante
+                : comisionClase;
+
+            var yaExiste = asistencias.Any(asistencia =>
+                asistencia.Fecha.Date == fecha &&
+                string.Equals(
+                    (asistencia.Comision ?? string.Empty).Trim(),
+                    comisionRegistro,
+                    StringComparison.Ordinal));
+
+            if (yaExiste)
+            {
+                continue;
+            }
+
+            var nuevaAsistencia = new Asistencia
+            {
+                LegajoEstudiante = legajo,
+                Fecha = fecha,
+                Presente = false,
+                Estado = EstadoAsistencia.Ausente,
+                Comision = comisionRegistro
+            };
+
+            await _database.InsertAsync(nuevaAsistencia);
+            asistencias.Add(nuevaAsistencia);
+            creadas.Add(nuevaAsistencia);
+        }
+
+        return creadas
+            .OrderBy(asistencia => asistencia.Fecha)
+            .ToList();
+    }
+
     public async Task<int> SaveAsistenciaAsync(Asistencia asistencia)
     {
         ArgumentNullException.ThrowIfNull(asistencia);
         await InitializeAsync();
         EstadoAsistencia.Aplicar(asistencia, EstadoAsistencia.Normalizar(asistencia));
-        return await _database.InsertOrReplaceAsync(asistencia);
+
+        // InsertOrReplace incluye la clave primaria autoincremental en la sentencia:
+        // todos los registros nuevos con Id 0 apuntarían al mismo rowid y se pisarían
+        // entre sí. Los nuevos se insertan para que SQLite asigne un Id único.
+        if (asistencia.Id > 0)
+        {
+            return await _database.UpdateAsync(asistencia);
+        }
+
+        asistencia.Id = 0;
+        return await _database.InsertAsync(asistencia);
     }
 
     public async Task<int> UpdateAsistenciaAsync(Asistencia asistencia)
@@ -463,6 +565,33 @@ public sealed class DatabaseService
             .ToList();
     }
 
+    /// <summary>
+    /// Devuelve la fecha de la primera clase (día de cursada) que aplica a la
+    /// comisión indicada. Incluye las fechas globales sin comisión.
+    /// </summary>
+    public async Task<DateTime?> GetPrimeraFechaClaseAsync(string? comision = null)
+    {
+        var fechas = await GetFechasClaseAsync(comision);
+        DateTime? primera = null;
+
+        foreach (var fechaClase in fechas)
+        {
+            if (!fechaClase.EsDiaClase)
+            {
+                continue;
+            }
+
+            var fecha = fechaClase.Fecha.Date;
+
+            if (primera is null || fecha < primera.Value)
+            {
+                primera = fecha;
+            }
+        }
+
+        return primera;
+    }
+
     public async Task<List<EntregaTrabajo>> GetEntregasAsync()
     {
         await InitializeAsync();
@@ -494,9 +623,14 @@ public sealed class DatabaseService
             fechaClase.Id = existente.Id;
         }
 
-        return fechaClase.Id > 0
+        var resultado = fechaClase.Id > 0
             ? await _database.UpdateAsync(fechaClase)
             : await _database.InsertAsync(fechaClase);
+
+        // Los alumnos sin fecha de ingreso (por ejemplo, importados por CSV antes
+        // de que existieran clases) adoptan la primera fecha de clase disponible.
+        await CompletarFechasIngresoDesdeClasesAsync();
+        return resultado;
     }
 
     public async Task<int> DeleteFechaClaseAsync(FechaClase fechaClase)
@@ -631,26 +765,22 @@ public sealed class DatabaseService
             .Count();
     }
 
-    public async Task<List<TrabajoPractico>> GetTrabajosPracticosAsync(
-        bool soloObligatorios = false,
-        string? comision = null)
+    public async Task<List<TrabajoPractico>> GetTrabajosPracticosAsync(string? comision = null)
     {
         await InitializeAsync();
         var trabajos = await _database.Table<TrabajoPractico>()
             .Where(trabajo => trabajo.Activo)
             .ToListAsync();
 
-        if (comision is not null)
+        if (comision is null)
         {
-            trabajos = trabajos
-                .Where(trabajo => string.IsNullOrWhiteSpace(trabajo.Comision) ||
-                                  string.Equals(trabajo.Comision, comision, StringComparison.Ordinal))
-                .ToList();
+            return trabajos;
         }
 
-        return soloObligatorios
-            ? trabajos.Where(trabajo => trabajo.Obligatorio).ToList()
-            : trabajos;
+        return trabajos
+            .Where(trabajo => string.IsNullOrWhiteSpace(trabajo.Comision) ||
+                              string.Equals(trabajo.Comision, comision, StringComparison.Ordinal))
+            .ToList();
     }
 
     public async Task<TrabajoPractico?> GetTrabajoPracticoAsync(int id)
@@ -853,6 +983,54 @@ public sealed class DatabaseService
     }
 
     /// <summary>
+    /// Asigna la primera fecha de clase a los alumnos que no tienen fecha de
+    /// ingreso. Se ejecuta al iniciar y cuando se guarda una fecha de clase.
+    /// </summary>
+    private async Task CompletarFechasIngresoDesdeClasesAsync()
+    {
+        var estudiantes = await _database.Table<Estudiante>()
+            .Where(estudiante => estudiante.FechaIngreso == null)
+            .ToListAsync();
+
+        if (estudiantes.Count == 0)
+        {
+            return;
+        }
+
+        // Se consulta directo a la tabla porque la inicialización puede estar en curso.
+        var clases = await _database.Table<FechaClase>()
+            .Where(fechaClase => fechaClase.EsDiaClase)
+            .ToListAsync();
+
+        if (clases.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var estudiante in estudiantes)
+        {
+            var primera = clases
+                .Where(fechaClase => string.IsNullOrWhiteSpace(fechaClase.Comision) ||
+                                     string.Equals(
+                                         fechaClase.Comision,
+                                         estudiante.Comision,
+                                         StringComparison.Ordinal))
+                .Select(fechaClase => fechaClase.Fecha.Date)
+                .Cast<DateTime?>()
+                .DefaultIfEmpty(null)
+                .Min();
+
+            if (primera is null)
+            {
+                continue;
+            }
+
+            estudiante.FechaIngreso = primera;
+            await _database.UpdateAsync(estudiante);
+        }
+    }
+
+    /// <summary>
     /// Repara los registros faltantes de alumnos ya registrados para que el historial
     /// refleje todas las clases desde su ingreso. Se ejecuta una sola vez.
     /// </summary>
@@ -867,6 +1045,22 @@ public sealed class DatabaseService
 
         await CompletarAsistenciasFaltantesCoreAsync();
         Preferences.Default.Set(clave, true);
+    }
+
+    private async Task MigrarVencimientoTrabajosPracticosAsync()
+    {
+        var columnaExiste = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('TrabajoPractico') WHERE name = 'FechaVencimiento'");
+
+        if (columnaExiste == 0)
+        {
+            await _database.ExecuteAsync(
+                "ALTER TABLE TrabajoPractico ADD COLUMN FechaVencimiento INTEGER");
+        }
+
+        // Todos los trabajos prácticos son obligatorios; se normalizan los históricos.
+        await _database.ExecuteAsync(
+            "UPDATE TrabajoPractico SET Obligatorio = 1 WHERE Obligatorio = 0");
     }
 
     private async Task MigrarComisionTrabajosPracticosAsync()

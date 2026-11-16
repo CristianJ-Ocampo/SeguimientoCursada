@@ -40,6 +40,8 @@ public sealed class EntregaTrabajoViewModel : INotifyPropertyChanged
 
     public bool TieneDescripcion => !string.IsNullOrWhiteSpace(Descripcion);
 
+    public string VencimientoMostrado => Trabajo.VencimientoMostrado;
+
     public void ActualizarEntrega(EntregaTrabajo? entrega)
     {
         Entrega = entrega;

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:SeguimientoCursada.Controls"
              xmlns:viewModels="clr-namespace:SeguimientoCursada.ViewModels"
              x:Class="SeguimientoCursada.Pages.InicioPage"
              x:DataType="viewModels:InicioViewModel"
@@ -27,7 +28,7 @@
                     </Border>
                     <Border Grid.Column="1" Padding="12" Stroke="LightGray">
                         <VerticalStackLayout>
-                            <Label Text="En riesgo" FontAttributes="Bold" />
+                            <Label Text="Moderados" FontAttributes="Bold" />
                             <Label Text="{Binding EstudiantesEnRiesgo}" FontSize="24" />
                         </VerticalStackLayout>
                     </Border>
@@ -41,6 +42,48 @@
 
                 <Label Text="{Binding EstudiantesSinDatos, StringFormat='Sin datos: {0}'}"
                        TextColor="Gray" />
+
+                <Border Padding="16"
+                        Stroke="LightGray"
+                        IsVisible="{Binding MostrarGraficoGlobal}">
+                    <VerticalStackLayout Spacing="12">
+                        <controls:RiesgoDonutChart HeightRequest="220"
+                                                   Optimos="{Binding EstudiantesOptimos}"
+                                                   EnRiesgo="{Binding EstudiantesEnRiesgo}"
+                                                   Criticos="{Binding EstudiantesCriticos}"
+                                                   TotalCentro="{Binding TotalConDatos}"
+                                                   SemanticProperties.Description="Gráfico de distribución del riesgo de los alumnos con datos" />
+                        <FlexLayout Direction="Row"
+                                    Wrap="Wrap"
+                                    JustifyContent="Center"
+                                    AlignItems="Center">
+                            <HorizontalStackLayout Spacing="6" Margin="6,2">
+                                <BoxView Color="{x:Static controls:RiesgoColores.Optimo}"
+                                         WidthRequest="12"
+                                         HeightRequest="12"
+                                         CornerRadius="6"
+                                         VerticalOptions="Center" />
+                                <Label Text="Óptimos" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <HorizontalStackLayout Spacing="6" Margin="6,2">
+                                <BoxView Color="{x:Static controls:RiesgoColores.EnRiesgo}"
+                                         WidthRequest="12"
+                                         HeightRequest="12"
+                                         CornerRadius="6"
+                                         VerticalOptions="Center" />
+                                <Label Text="Moderados" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <HorizontalStackLayout Spacing="6" Margin="6,2">
+                                <BoxView Color="{x:Static controls:RiesgoColores.Critico}"
+                                         WidthRequest="12"
+                                         HeightRequest="12"
+                                         CornerRadius="6"
+                                         VerticalOptions="Center" />
+                                <Label Text="Críticos" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </FlexLayout>
+                    </VerticalStackLayout>
+                </Border>
 
                 <Border Padding="12" Stroke="LightGray">
                     <VerticalStackLayout Spacing="6">
@@ -58,57 +101,34 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Label Text="Por comisión"
-                       Style="{StaticResource SubHeadline}"
-                       IsVisible="{Binding MostrarResumenPorComision}" />
-
-                <VerticalStackLayout Spacing="8"
-                                     IsVisible="{Binding MostrarResumenPorComision}"
-                                     BindableLayout.ItemsSource="{Binding ResumenesPorComision}">
+                <FlexLayout Direction="Row"
+                            Wrap="Wrap"
+                            JustifyContent="Start"
+                            AlignItems="Start"
+                            IsVisible="{Binding MostrarResumenPorComision}"
+                            BindableLayout.ItemsSource="{Binding ResumenesPorComision}">
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="viewModels:ResumenComisionViewModel">
-                            <Border Padding="12" Stroke="LightGray">
+                            <Border Padding="16"
+                                    Stroke="LightGray"
+                                    WidthRequest="300"
+                                    Margin="0,0,12,12">
                                 <VerticalStackLayout Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="{Binding Comision}"
-                                               FontAttributes="Bold"
-                                               FontSize="16" />
-                                        <Label Grid.Column="1"
-                                               Text="{Binding TotalAlumnos, StringFormat='Alumnos: {0}'}"
-                                               TextColor="Gray"
-                                               VerticalOptions="Center" />
-                                    </Grid>
-
-                                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                                        <VerticalStackLayout>
-                                            <Label Text="Óptimos"
-                                                   FontAttributes="Bold"
-                                                   FontSize="12" />
-                                            <Label Text="{Binding EstudiantesOptimos}" FontSize="20" />
-                                        </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="1">
-                                            <Label Text="En riesgo"
-                                                   FontAttributes="Bold"
-                                                   FontSize="12" />
-                                            <Label Text="{Binding EstudiantesEnRiesgo}" FontSize="20" />
-                                        </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="2">
-                                            <Label Text="Críticos"
-                                                   FontAttributes="Bold"
-                                                   FontSize="12" />
-                                            <Label Text="{Binding EstudiantesCriticos}" FontSize="20" />
-                                        </VerticalStackLayout>
-                                    </Grid>
-
-                                    <Label Text="{Binding EstudiantesSinDatos, StringFormat='Sin datos: {0}'}"
-                                           TextColor="Gray" />
-                                    <Label Text="{Binding PromedioAsistencia, StringFormat='Asistencia promedio: {0:0.##}%'}" />
-                                    <Label Text="{Binding PromedioEntregas, StringFormat='Entrega de TPs promedio: {0:0.##}%'}" />
+                                    <Label Text="{Binding Comision}"
+                                           FontAttributes="Bold"
+                                           FontSize="18"
+                                           HorizontalTextAlignment="Center" />
+                                    <controls:RiesgoDonutChart HeightRequest="180"
+                                                               Optimos="{Binding EstudiantesOptimos}"
+                                                               EnRiesgo="{Binding EstudiantesEnRiesgo}"
+                                                               Criticos="{Binding EstudiantesCriticos}"
+                                                               TotalCentro="{Binding TotalConDatos}"
+                                                               SemanticProperties.Description="Gráfico de distribución del riesgo de la comisión" />
                                 </VerticalStackLayout>
                             </Border>
                         </DataTemplate>
                     </BindableLayout.ItemTemplate>
-                </VerticalStackLayout>
+                </FlexLayout>
             </VerticalStackLayout>
 
             <ActivityIndicator IsRunning="{Binding EstaCargando}"

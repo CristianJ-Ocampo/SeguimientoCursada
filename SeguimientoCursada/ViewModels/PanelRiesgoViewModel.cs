@@ -86,7 +86,7 @@ public class PanelRiesgoViewModel : INotifyPropertyChanged
     {
         var estudiantes = await _databaseService.GetEstudiantesAsync();
         var fechasClase = await _databaseService.GetFechasClaseAsync();
-        var trabajos = await _databaseService.GetTrabajosPracticosAsync(soloObligatorios: true);
+        var trabajos = await _databaseService.GetTrabajosPracticosAsync();
         var asistencias = await _databaseService.GetAsistenciasAsync();
         var entregas = await _databaseService.GetEntregasAsync();
         var contactos = await _databaseService.GetUltimosContactosAsync();

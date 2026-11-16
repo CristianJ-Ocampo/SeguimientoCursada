@@ -32,6 +32,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(MostrarEstadoVacio));
                 OnPropertyChanged(nameof(MostrarMetricas));
                 OnPropertyChanged(nameof(MostrarResumenPorComision));
+                OnPropertyChanged(nameof(MostrarGraficoGlobal));
             }
         }
     }
@@ -39,6 +40,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     public bool MostrarEstadoVacio => !HayEstudiantes;
     public bool MostrarMetricas => HayEstudiantes;
     public bool MostrarResumenPorComision => HayEstudiantes && ResumenesPorComision.Count > 0;
+    public bool MostrarGraficoGlobal => HayEstudiantes && TotalConDatos > 0;
     public bool EstaCargando { get => _estaCargando; private set => SetProperty(ref _estaCargando, value); }
     public string Mensaje { get => _mensaje; private set => SetProperty(ref _mensaje, value); }
 
@@ -46,6 +48,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     public int EstudiantesEnRiesgo { get; private set; }
     public int EstudiantesCriticos { get; private set; }
     public int EstudiantesSinDatos { get; private set; }
+    public int TotalConDatos { get; private set; }
     public decimal PromedioAsistencia { get; private set; }
     public decimal PromedioEntregas { get; private set; }
     public int Contactados { get; private set; }
@@ -72,7 +75,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
             }
 
             var fechasClase = await _databaseService.GetFechasClaseAsync();
-            var trabajos = await _databaseService.GetTrabajosPracticosAsync(true);
+            var trabajos = await _databaseService.GetTrabajosPracticosAsync();
             var asistencias = await _databaseService.GetAsistenciasAsync();
             var entregas = await _databaseService.GetEntregasAsync();
             var contactos = await _databaseService.GetUltimosContactosAsync();
@@ -96,6 +99,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
             EstudiantesEnRiesgo = metricas.EnRiesgo;
             EstudiantesCriticos = metricas.Criticos;
             EstudiantesSinDatos = metricas.SinDatos;
+            TotalConDatos = metricas.Optimos + metricas.EnRiesgo + metricas.Criticos;
             PromedioAsistencia = metricas.PromedioAsistencia;
             PromedioEntregas = metricas.PromedioEntregas;
 
@@ -128,8 +132,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
                      .OrderBy(grupo => grupo.Key, StringComparer.CurrentCultureIgnoreCase))
         {
             var metricas = CalcularMetricas(grupo.Select(par => par.Resultado).ToList());
-
-            ResumenesPorComision.Add(new ResumenComisionViewModel(
+            var resumen = new ResumenComisionViewModel(
                 grupo.Key,
                 metricas.Total,
                 metricas.Optimos,
@@ -137,7 +140,12 @@ public sealed class InicioViewModel : INotifyPropertyChanged
                 metricas.Criticos,
                 metricas.SinDatos,
                 metricas.PromedioAsistencia,
-                metricas.PromedioEntregas));
+                metricas.PromedioEntregas);
+
+            if (resumen.TieneDatos)
+            {
+                ResumenesPorComision.Add(resumen);
+            }
         }
 
         OnPropertyChanged(nameof(MostrarResumenPorComision));
@@ -203,6 +211,7 @@ public sealed class InicioViewModel : INotifyPropertyChanged
     private void ReiniciarMetricas()
     {
         EstudiantesOptimos = EstudiantesEnRiesgo = EstudiantesCriticos = EstudiantesSinDatos = Contactados = PendientesContacto = 0;
+        TotalConDatos = 0;
         PromedioAsistencia = PromedioEntregas = 0;
         ResumenesPorComision.Clear();
         OnPropertyChanged(nameof(MostrarResumenPorComision));
@@ -215,6 +224,8 @@ public sealed class InicioViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(EstudiantesEnRiesgo));
         OnPropertyChanged(nameof(EstudiantesCriticos));
         OnPropertyChanged(nameof(EstudiantesSinDatos));
+        OnPropertyChanged(nameof(TotalConDatos));
+        OnPropertyChanged(nameof(MostrarGraficoGlobal));
         OnPropertyChanged(nameof(PromedioAsistencia));
         OnPropertyChanged(nameof(PromedioEntregas));
         OnPropertyChanged(nameof(Contactados));

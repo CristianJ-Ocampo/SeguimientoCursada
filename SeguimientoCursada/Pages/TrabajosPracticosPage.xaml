@@ -9,7 +9,7 @@
              Title="Trabajos prácticos">
     <ScrollView>
         <VerticalStackLayout Padding="24" Spacing="16">
-            <Label Text="Trabajos prácticos obligatorios"
+            <Label Text="Trabajos prácticos"
                    Style="{StaticResource Headline}"
                    SemanticProperties.HeadingLevel="Level1" />
 
@@ -24,11 +24,11 @@
             <Entry Placeholder="Descripción opcional"
                    Text="{Binding Descripcion}" />
 
-            <HorizontalStackLayout Spacing="12">
-                <CheckBox IsChecked="{Binding Obligatorio}" />
-                <Label Text="Trabajo obligatorio"
-                       VerticalOptions="Center" />
-            </HorizontalStackLayout>
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Fecha de entrega / vencimiento" />
+                <DatePicker Date="{Binding FechaVencimientoSeleccionada}"
+                            Format="dd/MM/yyyy" />
+            </VerticalStackLayout>
 
             <HorizontalStackLayout Spacing="12">
                 <Button Text="Guardar"
@@ -59,12 +59,8 @@
                                            FontAttributes="Bold" />
                                     <Label Text="{Binding Descripcion}" />
                                     <Label Text="{Binding ComisionMostrada}"
-                                           TextColor="DarkBlue" />
-                                    <Label Text="Obligatorio"
-                                           IsVisible="{Binding Obligatorio}"
-                                           TextColor="DarkBlue" />
-                                    <Label Text="Opcional"
-                                           IsVisible="{Binding EsOpcional}"
+                                           TextColor="{AppThemeBinding Light=DarkBlue, Dark=White}" />
+                                    <Label Text="{Binding VencimientoMostrado}"
                                            TextColor="Gray" />
                                 </VerticalStackLayout>
                                 <Button Grid.Column="1"

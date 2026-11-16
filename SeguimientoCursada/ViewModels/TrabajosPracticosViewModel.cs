@@ -16,7 +16,7 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
     private string _comisionSeleccionada = "1° A";
     private string _titulo = string.Empty;
     private string _descripcion = string.Empty;
-    private bool _obligatorio = true;
+    private DateTime _fechaVencimientoSeleccionada = DateTime.Today;
     private string _mensaje = string.Empty;
 
     public TrabajosPracticosViewModel()
@@ -43,7 +43,7 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
             {
                 Titulo = value.Titulo;
                 Descripcion = value.Descripcion;
-                Obligatorio = value.Obligatorio;
+                FechaVencimientoSeleccionada = value.FechaVencimiento ?? DateTime.Today;
                 ComisionSeleccionada = string.IsNullOrWhiteSpace(value.Comision)
                     ? "1° A"
                     : value.Comision;
@@ -76,10 +76,10 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
         set => SetProperty(ref _descripcion, value);
     }
 
-    public bool Obligatorio
+    public DateTime FechaVencimientoSeleccionada
     {
-        get => _obligatorio;
-        set => SetProperty(ref _obligatorio, value);
+        get => _fechaVencimientoSeleccionada;
+        set => SetProperty(ref _fechaVencimientoSeleccionada, value);
     }
 
     public string Mensaje
@@ -124,8 +124,9 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
             var trabajo = TrabajoSeleccionado ?? new TrabajoPractico();
             trabajo.Titulo = Titulo;
             trabajo.Descripcion = Descripcion;
-            trabajo.Obligatorio = Obligatorio;
+            trabajo.Obligatorio = true;
             trabajo.Activo = true;
+            trabajo.FechaVencimiento = FechaVencimientoSeleccionada.Date;
             trabajo.Comision = ComisionSeleccionada.Trim();
 
             await _databaseService.SaveTrabajoPracticoAsync(trabajo);
@@ -168,7 +169,7 @@ public sealed class TrabajosPracticosViewModel : INotifyPropertyChanged
         TrabajoSeleccionado = null;
         Titulo = string.Empty;
         Descripcion = string.Empty;
-        Obligatorio = true;
+        FechaVencimientoSeleccionada = DateTime.Today;
         ComisionSeleccionada = "1° A";
     }
 
