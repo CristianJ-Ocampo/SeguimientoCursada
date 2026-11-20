@@ -128,27 +128,45 @@ public static class RiesgoEstudianteService
 
         var fechaIngreso = estudiante.FechaIngreso?.Date;
         var hoy = DateTime.Today;
+        var comisionEstudiante = (estudiante.Comision ?? string.Empty).Trim();
+
+        var asistenciasLista = asistencias.ToList();
+        var asistenciasEstudiante = asistenciasLista
+            .Where(asistencia => asistencia.LegajoEstudiante == estudiante.Legajo)
+            .ToList();
+
+        // Una clase pasada cuenta solo si se tomó asistencia para la comisión
+        // (al menos un registro). Las clases sin ningún registro no suman al
+        // denominador ni afectan la racha, que se calcula con los registros
+        // existentes del estudiante.
+        var fechasConAsistenciaTomada = asistenciasLista
+            .Where(asistencia =>
+                string.IsNullOrWhiteSpace(asistencia.Comision) ||
+                string.Equals(
+                    asistencia.Comision.Trim(),
+                    comisionEstudiante,
+                    StringComparison.Ordinal))
+            .Select(asistencia => asistencia.Fecha.Date)
+            .Concat(asistenciasEstudiante.Select(asistencia => asistencia.Fecha.Date))
+            .ToHashSet();
 
         // Solo cuentan las fechas de cursada que aplican a la comisión del estudiante,
-        // que son iguales o posteriores a su fecha de ingreso y que ya se dictaron
-        // (es decir, hasta la fecha de hoy).
+        // que son iguales o posteriores a su fecha de ingreso, que ya se dictaron
+        // (es decir, hasta la fecha de hoy) y con asistencia efectivamente tomada.
         var fechasComputables = fechasClase
             .Where(fechaClase => fechaClase.EsDiaClase &&
                                  fechaClase.Fecha.Date <= hoy &&
                                  (fechaIngreso is null || fechaClase.Fecha.Date >= fechaIngreso) &&
                                  (string.IsNullOrWhiteSpace(fechaClase.Comision) ||
                                   string.Equals(
-                                      fechaClase.Comision,
-                                      estudiante.Comision,
-                                      StringComparison.Ordinal)))
+                                      fechaClase.Comision.Trim(),
+                                      comisionEstudiante,
+                                      StringComparison.Ordinal)) &&
+                                 fechasConAsistenciaTomada.Contains(fechaClase.Fecha.Date))
             .Select(fechaClase => fechaClase.Fecha.Date)
             .ToHashSet();
 
         var totalClasesConfiguradas = fechasComputables.Count;
-
-        var asistenciasEstudiante = asistencias
-            .Where(asistencia => asistencia.LegajoEstudiante == estudiante.Legajo)
-            .ToList();
 
         // El numerador también se limita a las fechas computables para evitar
         // porcentajes > 100% y para excluir registros anteriores al ingreso.

@@ -880,7 +880,9 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
             return;
         }
 
-        var asistencias = await _databaseService.GetAsistenciasPorLegajoAsync(_legajo);
+        // Se necesitan todas las asistencias para saber en qué clases se tomó
+        // presentismo; el servicio filtra por legajo.
+        var asistencias = await _databaseService.GetAsistenciasAsync();
         var fechasClase = await _databaseService.GetFechasClaseAsync();
         var trabajos = await _databaseService.GetTrabajosPracticosAsync(
             comision: Estudiante.Comision);
