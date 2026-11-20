@@ -52,6 +52,11 @@
                                 <Label Text="{Binding MotivoRiesgo}"
                                        FontSize="12"
                                        TextColor="Gray" />
+                                <Label Text="{Binding TextoAusenciasSeguidas}"
+                                       IsVisible="{Binding MostrarAusenciasSeguidas}"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="DarkRed" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Grid.Column="2"
                                                  VerticalOptions="Center"

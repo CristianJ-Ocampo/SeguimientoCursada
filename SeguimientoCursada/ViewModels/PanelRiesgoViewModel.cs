@@ -158,6 +158,7 @@ public class EstudianteRiesgoViewModel
         ClasesAsistidas = resultado.ClasesAsistidas;
         TotalClasesConfiguradas = resultado.TotalClasesConfiguradas;
         SinRegistrosAsistencia = resultado.SinRegistrosAsistencia;
+        AusenciasSeguidas = resultado.AusenciasSeguidas;
         PorcentajeEntregas = resultado.PorcentajeEntregas;
         NivelRiesgo = resultado.Nivel.ObtenerEtiqueta();
         EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
@@ -181,6 +182,9 @@ public class EstudianteRiesgoViewModel
     public int ClasesAsistidas { get; }
     public int TotalClasesConfiguradas { get; }
     public bool SinRegistrosAsistencia { get; }
+    public int AusenciasSeguidas { get; }
+    public bool MostrarAusenciasSeguidas => AusenciasSeguidas >= 2;
+    public string TextoAusenciasSeguidas => $"Faltas seguidas: {AusenciasSeguidas}";
     public bool TieneDatosAsistencia =>
         !SinRegistrosAsistencia && TotalClasesConfiguradas > 0;
     public string TextoAsistencia => TieneDatosAsistencia

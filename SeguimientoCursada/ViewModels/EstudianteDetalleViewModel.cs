@@ -243,6 +243,12 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
 
     public string MotivoRiesgo { get; private set; } = string.Empty;
 
+    public int AusenciasSeguidas { get; private set; }
+
+    public bool MostrarAusenciasSeguidas => AusenciasSeguidas >= 2;
+
+    public string TextoAusenciasSeguidas => $"Faltas seguidas: {AusenciasSeguidas}";
+
     public decimal PorcentajeAsistencia { get; private set; }
 
     public int ClasesAsistidas { get; private set; }
@@ -751,6 +757,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
                 EstadoSeguimiento = "Sin datos";
                 PuedeRegistrarContacto = false;
                 MotivoRiesgo = string.Empty;
+                AusenciasSeguidas = 0;
                 Editando = false;
                 Mensaje = $"No se encontró el estudiante con legajo {legajo}.";
                 NotificarDatos();
@@ -851,6 +858,9 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PuedeRegistrarContacto));
         OnPropertyChanged(nameof(ColorNivelRiesgo));
         OnPropertyChanged(nameof(MotivoRiesgo));
+        OnPropertyChanged(nameof(AusenciasSeguidas));
+        OnPropertyChanged(nameof(MostrarAusenciasSeguidas));
+        OnPropertyChanged(nameof(TextoAusenciasSeguidas));
         OnPropertyChanged(nameof(PorcentajeAsistencia));
         OnPropertyChanged(nameof(ClasesAsistidas));
         OnPropertyChanged(nameof(TotalClasesConfiguradas));
@@ -887,6 +897,7 @@ public sealed class EstudianteDetalleViewModel : INotifyPropertyChanged
         EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
         PuedeRegistrarContacto = resultado.RequiereContacto();
         MotivoRiesgo = resultado.Motivo;
+        AusenciasSeguidas = resultado.AusenciasSeguidas;
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
         ClasesAsistidas = resultado.ClasesAsistidas;
         TotalClasesConfiguradas = resultado.TotalClasesConfiguradas;

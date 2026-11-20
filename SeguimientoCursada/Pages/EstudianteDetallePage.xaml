@@ -128,6 +128,10 @@
                     <Label Text="Indicadores académicos"
                            FontAttributes="Bold" />
                     <Label Text="{Binding PorcentajeAsistencia, StringFormat='Asistencia: {0:0.##}%'}" />
+                    <Label Text="{Binding TextoAusenciasSeguidas}"
+                           IsVisible="{Binding MostrarAusenciasSeguidas}"
+                           FontAttributes="Bold"
+                           TextColor="DarkRed" />
                     <Label Text="{Binding ClasesAsistidas, StringFormat='Clases asistidas o justificadas: {0}'}" />
                     <Label Text="{Binding TotalClasesConfiguradas, StringFormat='Total de días de clase configurados: {0}'}" />
                     <Label Text="{Binding PorcentajeEntregas, StringFormat='Entregas de trabajos prácticos: {0:0.##}%'}" />

@@ -29,7 +29,8 @@ public sealed record ResultadoRiesgo(
     int TrabajosEntregados = 0,
     int TotalTrabajosObligatorios = 0,
     decimal PorcentajeEntregas = 0,
-    bool SinRegistrosAsistencia = false);
+    bool SinRegistrosAsistencia = false,
+    int AusenciasSeguidas = 0);
 
 public static class ResultadoRiesgoExtensions
 {
@@ -157,6 +158,11 @@ public static class RiesgoEstudianteService
 
         var sinRegistrosAsistencia = asistenciasComputables.Count == 0;
 
+        // Se cuenta hacia atrás desde la última clase con presentismo tomado para
+        // el estudiante. Una ausencia previa a un presente o justificado no cuenta:
+        // el corte es siempre el último estado registrado.
+        var ausenciasSeguidas = CalcularAusenciasSeguidas(asistenciasComputables);
+
         var inasistencias = asistenciasComputables.Count(asistencia =>
             EstadoAsistencia.Normalizar(asistencia) == EstadoAsistencia.Ausente);
         var clasesAsistidas = asistenciasComputables.Count(asistencia =>
@@ -239,6 +245,33 @@ public static class RiesgoEstudianteService
             trabajosEntregados,
             trabajos.Count,
             porcentajeEntregas,
-            sinRegistrosAsistencia);
+            sinRegistrosAsistencia,
+            ausenciasSeguidas);
+    }
+
+    /// <summary>
+    /// Cuenta las ausencias consecutivas al final del historial computable del
+    /// estudiante. Si la última clase tomada no es una ausencia, el resultado es 0.
+    /// </summary>
+    private static int CalcularAusenciasSeguidas(IEnumerable<Asistencia> asistencias)
+    {
+        var ultimaPorFecha = asistencias
+            .GroupBy(asistencia => asistencia.Fecha.Date)
+            .Select(grupo => grupo.OrderByDescending(asistencia => asistencia.Id).First())
+            .OrderBy(asistencia => asistencia.Fecha.Date)
+            .ToList();
+
+        var seguidas = 0;
+        for (var indice = ultimaPorFecha.Count - 1; indice >= 0; indice--)
+        {
+            if (EstadoAsistencia.Normalizar(ultimaPorFecha[indice]) != EstadoAsistencia.Ausente)
+            {
+                break;
+            }
+
+            seguidas++;
+        }
+
+        return seguidas;
     }
 }
