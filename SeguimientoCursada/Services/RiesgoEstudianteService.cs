@@ -126,11 +126,14 @@ public static class RiesgoEstudianteService
         configuracion ??= new ConfiguracionRiesgoService();
 
         var fechaIngreso = estudiante.FechaIngreso?.Date;
+        var hoy = DateTime.Today;
 
-        // Solo cuentan las fechas de cursada que aplican a la comisión del estudiante
-        // y que son iguales o posteriores a su fecha de ingreso.
+        // Solo cuentan las fechas de cursada que aplican a la comisión del estudiante,
+        // que son iguales o posteriores a su fecha de ingreso y que ya se dictaron
+        // (es decir, hasta la fecha de hoy).
         var fechasComputables = fechasClase
             .Where(fechaClase => fechaClase.EsDiaClase &&
+                                 fechaClase.Fecha.Date <= hoy &&
                                  (fechaIngreso is null || fechaClase.Fecha.Date >= fechaIngreso) &&
                                  (string.IsNullOrWhiteSpace(fechaClase.Comision) ||
                                   string.Equals(

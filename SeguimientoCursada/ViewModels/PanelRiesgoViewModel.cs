@@ -155,6 +155,8 @@ public class EstudianteRiesgoViewModel
         Nombre = estudiante.Nombre;
         Inasistencias = resultado.Inasistencias;
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
+        ClasesAsistidas = resultado.ClasesAsistidas;
+        TotalClasesConfiguradas = resultado.TotalClasesConfiguradas;
         PorcentajeEntregas = resultado.PorcentajeEntregas;
         NivelRiesgo = resultado.Nivel.ObtenerEtiqueta();
         EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
@@ -175,6 +177,9 @@ public class EstudianteRiesgoViewModel
     public string Nombre { get; }
     public int Inasistencias { get; }
     public decimal PorcentajeAsistencia { get; }
+    public int ClasesAsistidas { get; }
+    public int TotalClasesConfiguradas { get; }
+    public string BaseAsistencia => $"{ClasesAsistidas} de {TotalClasesConfiguradas} clases";
     public decimal PorcentajeEntregas { get; }
     public string NivelRiesgo { get; }
     public string MotivoRiesgo { get; }
