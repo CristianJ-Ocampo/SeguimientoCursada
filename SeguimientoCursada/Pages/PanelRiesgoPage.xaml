@@ -42,11 +42,12 @@
                                        FontAttributes="Bold" />
                                 <Label Text="{Binding Nombre}" />
                                 <HorizontalStackLayout Spacing="8">
-                                    <Label Text="{Binding PorcentajeAsistencia, StringFormat='Asistencia: {0:0.##}%'}"
+                                    <Label Text="{Binding TextoAsistencia}"
                                            FontSize="12" />
                                     <Label Text="{Binding BaseAsistencia}"
                                            FontSize="12"
-                                           TextColor="Gray" />
+                                           TextColor="Gray"
+                                           IsVisible="{Binding TieneDatosAsistencia}" />
                                 </HorizontalStackLayout>
                                 <Label Text="{Binding MotivoRiesgo}"
                                        FontSize="12"

@@ -157,6 +157,7 @@ public class EstudianteRiesgoViewModel
         PorcentajeAsistencia = resultado.PorcentajeAsistencia;
         ClasesAsistidas = resultado.ClasesAsistidas;
         TotalClasesConfiguradas = resultado.TotalClasesConfiguradas;
+        SinRegistrosAsistencia = resultado.SinRegistrosAsistencia;
         PorcentajeEntregas = resultado.PorcentajeEntregas;
         NivelRiesgo = resultado.Nivel.ObtenerEtiqueta();
         EstadoSeguimiento = resultado.ObtenerEstadoSeguimiento().ObtenerEtiqueta();
@@ -179,6 +180,12 @@ public class EstudianteRiesgoViewModel
     public decimal PorcentajeAsistencia { get; }
     public int ClasesAsistidas { get; }
     public int TotalClasesConfiguradas { get; }
+    public bool SinRegistrosAsistencia { get; }
+    public bool TieneDatosAsistencia =>
+        !SinRegistrosAsistencia && TotalClasesConfiguradas > 0;
+    public string TextoAsistencia => TieneDatosAsistencia
+        ? $"Asistencia: {PorcentajeAsistencia:0.##}%"
+        : "Asistencia: sin datos";
     public string BaseAsistencia => $"{ClasesAsistidas} de {TotalClasesConfiguradas} clases";
     public decimal PorcentajeEntregas { get; }
     public string NivelRiesgo { get; }
